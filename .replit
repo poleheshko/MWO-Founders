@@ -12,8 +12,6 @@ entrypoint = "dist/main.js"
 alwaysRun = ["npm install", "npm run build"]
 
 # Run command - starts the production server
-# Note: Git configuration should be done manually before first deploy:
-# Run: git config pull.rebase false (to avoid divergent branches error)
 run = "npm run start:prod"
 
 # Environment variables are set in Replit Secrets (Tools -> Secrets)
