@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';

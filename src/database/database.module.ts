@@ -22,9 +22,13 @@ import { Issue } from './entities/issue.entity';
 
         if (dbConfig.type === 'postgres' && dbConfig.url) {
           config.url = dbConfig.url;
-          // Explicit SSL configuration for Neon and other cloud providers
           config.ssl = {
-            rejectUnauthorized: false, // Required for Neon
+            rejectUnauthorized: false,
+          };
+          config.extra = {
+            ssl: {
+              rejectUnauthorized: false,
+            },
           };
         } else if (dbConfig.type === 'sqlite') {
           config.database = dbConfig.path;
