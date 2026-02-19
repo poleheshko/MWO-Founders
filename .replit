@@ -1,37 +1,39 @@
 # Replit configuration file
-# This file configures how Replit runs your project
-
-# Language and runtime
 language = "nodejs"
-<<<<<<< HEAD
-run = "npm run start:prod"
-=======
->>>>>>> ecaef2547de81decacaa3adc52b96ce5573a9001
-
-# Entry point
 entrypoint = "dist/main.js"
-
-<<<<<<< HEAD
-# Always run command (runs before the run command)
-alwaysRun = ["npm install"]
-=======
-# Always run commands (run before the run command)
-# npm install will install dependencies, then build will compile TypeScript
-alwaysRun = ["npm install", "npm run build"]
->>>>>>> ecaef2547de81decacaa3adc52b96ce5573a9001
-
-# Run command - starts the production server
 run = "npm run start:prod"
-
-# Environment variables are set in Replit Secrets (Tools -> Secrets)
-
-# Build command
+alwaysRun = ["npm install", "npm run build"]
 build = "npm run build"
+modules = ["nodejs-20"]
 
-# LSP (Language Server Protocol) configuration
 [languages.nodejs]
 pattern = "**/*.{js,ts,json}"
 
-# Nix environment (optional, but recommended)
 [nix]
 channel = "stable-23_11"
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Bot"
+
+[[workflows.workflow]]
+name = "Start Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build && npm run start:prod"
+
+[workflows.workflow.metadata]
+outputType = "console"

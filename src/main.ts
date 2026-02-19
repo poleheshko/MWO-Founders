@@ -27,7 +27,11 @@ if (result.error && 'code' in result.error && result.error.code === 'ENOENT') {
   if (!result.error) console.log('Loaded .env from parent dir:', envPathParent);
 }
 if (result.error) {
-  console.error('❌ Error loading .env file:', result.error);
+  if ('code' in result.error && (result.error as any).code === 'ENOENT') {
+    console.log('ℹ️ No .env file found, using environment variables from system');
+  } else {
+    console.error('❌ Error loading .env file:', result.error);
+  }
 } else {
   const parsed = result.parsed || {};
   const allKeys = Object.keys(parsed);
