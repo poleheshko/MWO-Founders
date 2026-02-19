@@ -21,7 +21,12 @@ import { Issue } from './entities/issue.entity';
         };
 
         if (dbConfig.type === 'postgres' && dbConfig.url) {
-          config.url = dbConfig.url;
+          const dbUrl = new URL(dbConfig.url);
+          config.host = dbUrl.hostname;
+          config.port = parseInt(dbUrl.port || '5432', 10);
+          config.username = decodeURIComponent(dbUrl.username);
+          config.password = decodeURIComponent(dbUrl.password);
+          config.database = dbUrl.pathname.replace(/^\//, '');
           config.ssl = {
             rejectUnauthorized: false,
           };
