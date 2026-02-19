@@ -3,20 +3,17 @@
 
 # Language and runtime
 language = "nodejs"
-# Run command - build is ensured by prestart:prod script, but we can also build here for safety
-run = "npm run build && npm run start:prod"
+run = "npm run start:prod"
 
 # Entry point
 entrypoint = "dist/main.js"
 
 # Always run command (runs before the run command)
-# npm install will install dependencies, then build will compile TypeScript
-alwaysRun = ["npm install", "npm run build"]
+alwaysRun = ["npm install"]
 
 # Environment variables are set in Replit Secrets (Tools -> Secrets)
 
-# Build command - this runs automatically before 'run' command
-# The prestart:prod script will also ensure build runs if dist is missing
+# Build command
 build = "npm run build"
 
 # LSP (Language Server Protocol) configuration
