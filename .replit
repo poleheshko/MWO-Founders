@@ -37,3 +37,13 @@ args = "npm run build && npm run start:prod"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "vm"
+publicDir = "dist"
+run = ["npm", "run", "start:prod"]
+build = ["npm", "run", "build"]
