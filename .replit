@@ -3,13 +3,27 @@
 
 # Language and runtime
 language = "nodejs"
+<<<<<<< HEAD
 run = "npm run start:prod"
+=======
+>>>>>>> ecaef2547de81decacaa3adc52b96ce5573a9001
 
 # Entry point
 entrypoint = "dist/main.js"
 
+<<<<<<< HEAD
 # Always run command (runs before the run command)
 alwaysRun = ["npm install"]
+=======
+# Always run commands (run before the run command)
+# npm install will install dependencies, then build will compile TypeScript
+alwaysRun = ["npm install", "npm run build"]
+>>>>>>> ecaef2547de81decacaa3adc52b96ce5573a9001
+
+# Run command - starts the production server
+# Note: Git configuration should be done manually before first deploy:
+# Run: git config pull.rebase false (to avoid divergent branches error)
+run = "npm run start:prod"
 
 # Environment variables are set in Replit Secrets (Tools -> Secrets)
 

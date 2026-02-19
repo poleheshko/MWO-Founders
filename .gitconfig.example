@@ -1,0 +1,11 @@
+# Git configuration for Replit
+# Copy this to ~/.gitconfig on Replit or run:
+# git config --global pull.rebase false
+
+[pull]
+    rebase = false
+    ff = only
+
+# Alternative configuration (uncomment if you prefer merge strategy):
+# [pull]
+#     rebase = false

@@ -1,0 +1,21 @@
+# Komendy do skopiowania na Replit (wykonaj po sklonowaniu repozytorium)
+
+# 1. Konfiguracja git (rozwiązuje problem z divergent branches)
+git config pull.rebase false
+
+# 2. Pull najnowszych zmian (jeśli są divergent branches, użyj reset)
+git fetch origin
+git reset --hard origin/main
+
+# 3. Instalacja zależności
+npm install
+
+# 4. Build projektu
+npm run build
+
+# 5. Uruchomienie bota
+npm run start:prod
+
+# ALTERNATYWNIE: użyj skryptu setup
+chmod +x replit-setup.sh
+./replit-setup.sh
