@@ -1,0 +1,25 @@
+# Replit configuration file
+# This file configures how Replit runs your project
+
+# Language and runtime
+language = "nodejs"
+run = "npm run start:prod"
+
+# Entry point
+entrypoint = "dist/main.js"
+
+# Always run command (runs before the run command)
+alwaysRun = ["npm install"]
+
+# Environment variables are set in Replit Secrets (Tools -> Secrets)
+
+# Build command
+build = "npm run build"
+
+# LSP (Language Server Protocol) configuration
+[languages.nodejs]
+pattern = "**/*.{js,ts,json}"
+
+# Nix environment (optional, but recommended)
+[nix]
+channel = "stable-23_11"
