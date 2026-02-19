@@ -72,6 +72,18 @@ npm run build
 npm run start:prod
 ```
 
+## Replit Deployment
+
+See [REPLIT_SETUP.md](./REPLIT_SETUP.md) for detailed Replit deployment instructions.
+
+**Quick setup:**
+1. Clone repository on Replit
+2. Configure git: `git config pull.rebase false`
+3. Set environment variables in Replit Secrets (Tools → Secrets)
+4. Run: `npm install && npm run build && npm run start:prod`
+
+The `.replit` file is pre-configured for automatic deployment.
+
 ## Configuration
 
 ### Discord Setup

@@ -3,15 +3,18 @@
 
 # Language and runtime
 language = "nodejs"
-# Run command - build is ensured by prestart:prod script, but we can also build here for safety
-run = "npm run build && npm run start:prod"
 
 # Entry point
 entrypoint = "dist/main.js"
 
-# Always run command (runs before the run command)
+# Always run commands (run before the run command)
 # npm install will install dependencies, then build will compile TypeScript
 alwaysRun = ["npm install", "npm run build"]
+
+# Run command - starts the production server
+# Note: Git configuration should be done manually before first deploy:
+# Run: git config pull.rebase false (to avoid divergent branches error)
+run = "npm run start:prod"
 
 # Environment variables are set in Replit Secrets (Tools -> Secrets)
 
