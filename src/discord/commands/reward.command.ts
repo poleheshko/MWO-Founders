@@ -29,33 +29,37 @@ export class RewardCommand {
     const embed = new EmbedBuilder()
       .setTitle('🎁 Program Rewards')
       .setDescription(
-        'Here are the rewards available at the end of the Founders Circle program. Keep testing and earning TC to unlock them!',
+        'Here are the rewards available in the Founders Circle program. Keep testing and earning gems!',
       )
       .setColor(0x5865f2)
       .addFields(
         {
-          name: '💎 TC Reward Store',
+          name: '💰 Testing Benefits',
           value:
-            '```\n' +
-            ' 100 TC → Small Exclusive Pack\n' +
-            ' 250 TC → Medium Exclusive Pack\n' +
-            ' 500 TC → Large Exclusive Pack\n' +
-            ' 800 TC → Elite Exclusive Pack\n' +
-            '1200 TC → Founder-Only Collectible\n' +
-            '```',
+            '**Participation:**\n' +
+            '`100 gems` every week (800 in total)\n\n' +
+            '**First experience video (min. 5 min):**\n' +
+            '`400 gems` every week (3200 in total)\n\n' +
+            '**Deep analysis packages** (screens + written feedback):\n' +
+            '`25-40 gems` for proven bug (up to 1000 gems per week)\n\n' +
+            '> Quality > quantity.',
           inline: false,
         },
         {
-          name: '🏆 Rank-Based Rewards',
+          name: '🏆 Weekly Game Winners',
           value:
-            '**Top 10** → Founders Launch Pack\n' +
-            '**Top 50** → Test Pilot Launch Pack\n' +
-            '**All Finishers** → Season Finisher Collectible',
+            '```\n' +
+            '🥇 1st place  →  2000 gems\n' +
+            '🥈 2nd place  →  1000 gems\n' +
+            '🥉 3rd place  →   750 gems\n' +
+            '   4-10th     →   500 gems\n' +
+            '   11-20th    →   100 gems\n' +
+            '```',
           inline: false,
         },
       )
       .setFooter({
-        text: 'Use /founders profile to check your current TC • Use /leaderboard to see rankings',
+        text: 'Use /founders profile to check your current gems • Use /leaderboard to see rankings',
       })
       .setTimestamp();
 
