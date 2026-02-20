@@ -157,7 +157,7 @@ export class ProfileCommand {
         return;
       }
 
-      // Re-evaluate rank based on current TC before displaying profile
+      // Re-evaluate rank based on current Gems before displaying profile
       try {
         await this.rankService.evaluateRank(discordUserId);
         // Refresh tester data after rank evaluation
@@ -194,7 +194,7 @@ export class ProfileCommand {
           15,
           'approved',
         );
-        // Get all declined submissions to calculate total declined TC
+        // Get all declined submissions to calculate total declined Gems
         allDeclinedSubmissions = await this.submissionService.getSubmissionsByUser(
           discordUserId,
           1000, // Large limit to get all declined submissions
@@ -247,7 +247,7 @@ export class ProfileCommand {
           year: 'numeric',
         });
 
-      // Calculate declined TC from all declined submissions
+      // Calculate declined Gems from all declined submissions
       const declinedTc = allDeclinedSubmissions.reduce(
         (sum, s) => sum + (s.tcProposed || 0),
         0,
@@ -258,17 +258,17 @@ export class ProfileCommand {
         .setColor(0x5865f2)
         .addFields(
           {
-            name: '✅ Confirmed TC',
+            name: '✅ Confirmed <:gem:1>',
             value: tester.tcConfirmedTotal.toString(),
             inline: true,
           },
           {
-            name: '⏳ Pending TC',
+            name: '⏳ Pending <:gem:1>',
             value: tester.tcPendingTotal.toString(),
             inline: true,
           },
           {
-            name: '❌ Declined TC',
+            name: '❌ Declined <:gem:1>',
             value: declinedTc.toString(),
             inline: true,
           },
@@ -290,7 +290,7 @@ export class ProfileCommand {
           ? pendingSubmissions
               .map(
                 (s) =>
-                  `• **${getSubmissionDisplayName(s)}** (${s.status}) - ${s.tcProposed} TC — ${formatDate(s.createdAt)}`,
+                  `• **${getSubmissionDisplayName(s)}** (${s.status}) - ${s.tcProposed} <:gem:1> — ${formatDate(s.createdAt)}`,
               )
               .join('\n')
           : '_No pending submissions_';
@@ -305,7 +305,7 @@ export class ProfileCommand {
           ? confirmedSubmissions
               .map(
                 (s) =>
-                  `• **${getSubmissionDisplayName(s)}** — +${s.tcAwarded} TC — ${formatDate(s.createdAt)}`,
+                  `• **${getSubmissionDisplayName(s)}** — +${s.tcAwarded} <:gem:1> — ${formatDate(s.createdAt)}`,
               )
               .join('\n')
           : '_No confirmed submissions yet_';
@@ -320,7 +320,7 @@ export class ProfileCommand {
           ? declinedSubmissions
               .map(
                 (s) =>
-                  `• **${getSubmissionDisplayName(s)}** — ${s.tcProposed} TC — ${formatDate(s.createdAt)}`,
+                  `• **${getSubmissionDisplayName(s)}** — ${s.tcProposed} <:gem:1> — ${formatDate(s.createdAt)}`,
               )
               .join('\n')
           : '_No declined submissions_';

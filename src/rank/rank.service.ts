@@ -7,9 +7,9 @@ import { SubmissionService } from '../submission/submission.service';
 @Injectable()
 export class RankService {
   private readonly rankConfig: {
-    explorer: { tc: number };
-    testPilot: { tc: number };
-    foundersCircle: { tc: number; topN: number };
+    explorer: { gems: number };
+    testPilot: { gems: number };
+    foundersCircle: { gems: number; topN: number };
   };
 
   constructor(
@@ -42,8 +42,8 @@ export class RankService {
   private async determineRank(
     tcConfirmed: number,
   ): Promise<TesterRank> {
-    // Check Founders Circle: TC >= 900 OR Top 15 in all-time leaderboard
-    if (tcConfirmed >= this.rankConfig.foundersCircle.tc) {
+    // Check Founders Circle: Gems >= 900 OR Top 15 in all-time leaderboard
+    if (tcConfirmed >= this.rankConfig.foundersCircle.gems) {
       return 'founders_circle';
     }
 
@@ -54,15 +54,15 @@ export class RankService {
       this.rankConfig.foundersCircle.topN,
     );
     // Note: This is a simplified check - in production, you'd check if user is in top N
-    // For now, we'll rely on TC threshold
+    // For now, we'll rely on Gems threshold
 
-    // Check Test Pilot: TC >= 250 (structured reports requirement removed)
-    if (tcConfirmed >= this.rankConfig.testPilot.tc) {
+    // Check Test Pilot: Gems >= 250 (structured reports requirement removed)
+    if (tcConfirmed >= this.rankConfig.testPilot.gems) {
       return 'test_pilot';
     }
 
-    // Check Explorer: TC >= 60
-    if (tcConfirmed >= this.rankConfig.explorer.tc) {
+    // Check Explorer: Gems >= 60
+    if (tcConfirmed >= this.rankConfig.explorer.gems) {
       return 'explorer';
     }
 

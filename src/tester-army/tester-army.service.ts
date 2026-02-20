@@ -38,7 +38,7 @@ export class TesterArmyService {
 
     if (hasProgramRole) {
       if (existing) {
-        // Don't override rank - it should be determined by TC via evaluateRank()
+        // Don't override rank - it should be determined by Gems via evaluateRank()
         // Only update membership status
         existing.status = 'active';
         existing.leftAt = null;
@@ -46,7 +46,7 @@ export class TesterArmyService {
         return await this.armyTesterRepository.save(existing);
       } else {
         // For new testers, start with recruit rank
-        // Rank will be evaluated automatically based on TC
+        // Rank will be evaluated automatically based on Gems
         const newTester = this.armyTesterRepository.create({
           discordUserId,
           status: 'active',

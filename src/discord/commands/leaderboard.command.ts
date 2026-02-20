@@ -80,7 +80,7 @@ export class LeaderboardCommand {
         leaderboard
           .map(
             (entry, index) =>
-              `${this.getMedal(index)} **${entry.username}** - ${entry.totalTc} TC`,
+              `${this.getMedal(index)} **${entry.username}** - ${entry.totalTc} <:gem:1>`,
           )
           .join('\n'),
       )

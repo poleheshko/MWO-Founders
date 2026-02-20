@@ -20,8 +20,8 @@ export class SchedulerService {
     private readonly testerArmyService: TesterArmyService,
   ) {}
 
-  // Poll Google Sheets every 30 minutes
-  @Cron('0 */30 * * * *')
+  // Poll Google Sheets every 10 minutes
+  @Cron('0 */10 * * * *')
   async pollGoogleSheets() {
     this.logger.debug('Polling Google Sheets for new survey submissions');
     await this.googleSheetsService.pollNewSubmissions();
@@ -82,7 +82,7 @@ export class SchedulerService {
           ? leaderboard
               .map(
                 (entry, index) =>
-                  `${index + 1}. **${entry.username}** - ${entry.totalTc} TC`,
+                  `${index + 1}. **${entry.username}** - ${entry.totalTc} <:gem:1>`,
               )
               .join('\n')
           : 'No submissions for this build yet.';

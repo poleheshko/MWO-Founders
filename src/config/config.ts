@@ -16,25 +16,25 @@ export const config = () => ({
   program: {
     roles: (process.env.PROGRAM_ROLES || 'Tester Recruit,Explorer,Test Pilot,Founders Circle').split(','),
   },
-  tc: {
-    quickTest: parseInt(process.env.TC_QUICK_TEST || '10', 10),
-    survey: parseInt(process.env.TC_SURVEY || '3', 10),
-    screenshot: parseInt(process.env.TC_SCREENSHOT || '5', 10),
-    bugRepro: parseInt(process.env.TC_BUG_REPRO || '25', 10),
-    bugVideo: parseInt(process.env.TC_BUG_VIDEO || '40', 10),
-    balanceAnalysis: parseInt(process.env.TC_BALANCE_ANALYSIS || '30', 10),
-    retest: parseInt(process.env.TC_RETEST || '15', 10),
-    shippedBonus: parseInt(process.env.TC_SHIPPED_BONUS || '100', 10),
+  gems: {
+    quickTest: parseInt(process.env.GEMS_QUICK_TEST || '10', 10),
+    survey: parseInt(process.env.GEMS_SURVEY || '3', 10),
+    screenshot: parseInt(process.env.GEMS_SCREENSHOT || '5', 10),
+    bugRepro: parseInt(process.env.GEMS_BUG_REPRO || '25', 10),
+    bugVideo: parseInt(process.env.GEMS_BUG_VIDEO || '40', 10),
+    balanceAnalysis: parseInt(process.env.GEMS_BALANCE_ANALYSIS || '30', 10),
+    retest: parseInt(process.env.GEMS_RETEST || '15', 10),
+    shippedBonus: parseInt(process.env.GEMS_SHIPPED_BONUS || '100', 10),
   },
   ranks: {
     explorer: {
-      tc: parseInt(process.env.RANK_EXPLORER_TC || '60', 10),
+      gems: parseInt(process.env.RANK_EXPLORER_GEMS || '60', 10),
     },
     testPilot: {
-      tc: parseInt(process.env.RANK_TEST_PILOT_TC || '250', 10),
+      gems: parseInt(process.env.RANK_TEST_PILOT_GEMS || '250', 10),
     },
     foundersCircle: {
-      tc: parseInt(process.env.RANK_FOUNDERS_CIRCLE_TC || '900', 10),
+      gems: parseInt(process.env.RANK_FOUNDERS_CIRCLE_GEMS || '900', 10),
       topN: parseInt(process.env.RANK_FOUNDERS_CIRCLE_TOP_N || '15', 10),
     },
   },
@@ -42,7 +42,7 @@ export const config = () => ({
     submitPerHour: parseInt(process.env.RATE_LIMIT_SUBMIT_PER_HOUR || '10', 10),
   },
   build: {
-    maxTcPerBuild: parseInt(process.env.BUILD_MAX_TC_PER_USER || '200', 10),
+    maxGemsPerBuild: parseInt(process.env.BUILD_MAX_GEMS_PER_USER || '1000', 10),
   },
   googleSheets: {
     spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,

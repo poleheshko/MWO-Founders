@@ -69,16 +69,16 @@ export class AdminCommands {
 
   tcAdjust = new SlashCommandBuilder()
     .setName('tc')
-    .setDescription('Adjust TC manually')
+    .setDescription('Adjust Gems manually')
     .addSubcommand((subcommand) =>
       subcommand
         .setName('adjust')
-        .setDescription('Adjust TC for a user')
+        .setDescription('Adjust Gems for a user')
         .addUserOption((option) =>
           option.setName('user').setDescription('User').setRequired(true),
         )
         .addIntegerOption((option) =>
-          option.setName('delta').setDescription('TC delta (can be negative)').setRequired(true),
+          option.setName('delta').setDescription('Gems delta (can be negative)').setRequired(true),
         )
         .addStringOption((option) =>
           option.setName('reason').setDescription('Reason').setRequired(true),
@@ -114,7 +114,7 @@ export class AdminCommands {
 
   awardDeliveredFeatures = new SlashCommandBuilder()
     .setName('award')
-    .setDescription('Award delivered features points (exempt from 200 TC cap)')
+    .setDescription('Award delivered features points (exempt from 1000 Gems cap)')
     .addSubcommand((subcommand) =>
       subcommand
         .setName('delivered')
@@ -128,7 +128,7 @@ export class AdminCommands {
         .addIntegerOption((option) =>
           option
             .setName('points')
-            .setDescription('TC points per user')
+            .setDescription('Gems points per user')
             .setRequired(true),
         )
         .addStringOption((option) =>
@@ -181,8 +181,8 @@ export class AdminCommands {
         .setDescription(
           `**${buildName}** is now live!\n\n` +
             'Download the build and start testing. Use `/participate` to submit your contributions.\n\n' +
-            'Each tester can earn up to **200 TC** per build from regular submissions. ' +
-            'Award bonus points for any delivered feature or milestone. Points are exempt from the 200 TC per build cap.',
+            'Each tester can earn up to **1000 <:gem:1>** per build from regular submissions. ' +
+            'Award bonus points for any delivered feature or milestone. Points are exempt from the 1000 <:gem:1> per build cap.',
         )
         .setColor(0x57f287)
         .addFields(
@@ -208,7 +208,7 @@ export class AdminCommands {
           },
         )
         .setFooter({
-          text: 'Use /participate for submission links • Use /founders profile to check your TC',
+          text: 'Use /participate for submission links • Use /founders profile to check your <:gem:1>',
         })
         .setTimestamp();
 
@@ -326,7 +326,7 @@ export class AdminCommands {
           continue;
         }
 
-        const message = `🎉 Player <@${discordUserId}> received **${points} TC** for **${reason}**. Thank you for your contribution!`;
+        const message = `🎉 Player <@${discordUserId}> received **${points} <:gem:1>** for **${reason}**. Thank you for your contribution!`;
 
         try {
           await this.discordService.sendToChannel(highlightsChannelId, message);
@@ -344,7 +344,7 @@ export class AdminCommands {
       id.startsWith('temp_') ? id : `<@${id}>`,
     );
 
-    let responseContent = `✅ Awarded **${points} TC** (${reason}) to **${submissions.length}** user(s).\n\n`;
+    let responseContent = `✅ Awarded **${points} <:gem:1>** (${reason}) to **${submissions.length}** user(s).\n\n`;
 
     if (sentMessages.length > 0) {
       responseContent += `📢 **Highlights message sent for ${sentMessages.length} user(s):**\n${successMentions.join(', ')}\n\n`;
@@ -395,7 +395,7 @@ export class AdminCommands {
     }
 
     await interaction.editReply({
-      content: `✅ Shipped bonus awarded! +100 TC to <@${userId}>`,
+      content: `✅ Shipped bonus awarded! +100 <:gem:1> to <@${userId}>`,
     });
   }
 
@@ -424,7 +424,7 @@ export class AdminCommands {
     );
 
     await interaction.editReply({
-      content: `✅ TC adjusted: ${delta > 0 ? '+' : ''}${delta} TC for <@${user.id}>\nReason: ${reason}`,
+      content: `✅ <:gem:1> adjusted: ${delta > 0 ? '+' : ''}${delta} <:gem:1> for <@${user.id}>\nReason: ${reason}`,
     });
   }
 
@@ -456,7 +456,7 @@ export class AdminCommands {
           ? leaderboard
               .map(
                 (entry, index) =>
-                  `${index + 1}. **${entry.username}** - ${entry.totalTc} TC`,
+                  `${index + 1}. **${entry.username}** - ${entry.totalTc} <:gem:1>`,
               )
               .join('\n')
           : 'No submissions this week.',

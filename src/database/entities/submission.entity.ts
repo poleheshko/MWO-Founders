@@ -21,7 +21,7 @@ export type SubmissionType =
   | 'retest'
   | 'shipped_bonus'
   | 'manual_adjust'
-  // Delivered features - exempt from 200 TC per build cap
+  // Delivered features - exempt from 1000 Gems per build cap
   | 'structured_report_bonus'
   | 'video_session'
   | 'playtime_minimum';

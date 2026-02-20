@@ -141,7 +141,7 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
       roles,
     );
 
-    // Evaluate rank for new member (will be recruit if no TC)
+    // Evaluate rank for new member (will be recruit if no Gems)
     const tester = await this.testerArmyService.getTester(member.id);
     if (tester) {
       await this.rankService.evaluateRank(member.id);

@@ -17,7 +17,7 @@
 ### ✅ Core Services
 - **UserService**: Upserts Discord users automatically
 - **TesterArmyService**: Manages program membership based on Discord roles
-- **SubmissionService**: Handles all submission types with TC calculation
+- **SubmissionService**: Handles all submission types with Gems calculation
 - **RankService**: Evaluates ranks and syncs Discord roles
 - **CycleService**: Manages weekly testing cycles
 - **GoogleSheetsService**: Polls Google Sheets for survey submissions
@@ -25,7 +25,7 @@
 ### ✅ Discord Commands
 
 **Tester Commands:**
-- `/profile` - View TC, rank, and recent submissions
+- `/profile` - View Gems, rank, and recent submissions
 - `/leaderboard [week|all]` - View leaderboards
 - `/submit screenshot` - Submit screenshot with insight
 - `/submit bug` - Submit bug report (with optional video)
@@ -36,13 +36,13 @@
 - `/cycle create` - Create weekly cycle
 - `/cycle publish` - Publish cycle
 - `/submission review` - Approve/decline submissions
-- `/shipped` - Award shipped bonus (+100 TC)
-- `/tc adjust` - Manually adjust TC
+- `/shipped` - Award shipped bonus (+100 Gems)
+- `/tc adjust` - Manually adjust Gems
 - `/report weekly` - Generate weekly report
 
 ### ✅ Automated Workflows
 - **Membership Sync**: On member join/update, nightly sync
-- **Rank Evaluation**: Automatic after TC recalculation
+- **Rank Evaluation**: Automatic after Gems recalculation
 - **Google Sheets Polling**: Every 5 minutes
 - **Reminders**: Wednesday (mid-week), Friday (deadline)
 - **Weekly Reports**: Sunday (with cycle closure)
@@ -51,30 +51,30 @@
 
 All tables match the spec exactly:
 - `users` - Global user identity
-- `army_testers` - Program membership + cached TC
+- `army_testers` - Program membership + cached Gems
 - `weekly_cycles` - Weekly mission packs
 - `submissions` - All tester contributions
 - `issues` - Optional bug tracking
 
-## TC Scoring
+## Gems Scoring
 
 Implemented as configurable constants:
-- Quick Test: 10 TC
-- Survey: 3 TC (auto-approved)
-- Screenshot: 5 TC
-- Bug Repro: 25 TC
-- Bug Video: 40 TC
-- Balance Analysis: 30 TC
-- Re-test: 15 TC
-- Shipped Bonus: 100 TC
+- Quick Test: 10 Gems
+- Survey: 3 Gems (auto-approved)
+- Screenshot: 5 Gems
+- Bug Repro: 25 Gems
+- Bug Video: 40 Gems
+- Balance Analysis: 30 Gems
+- Re-test: 15 Gems
+- Shipped Bonus: 100 Gems
 
 ## Rank System
 
 Ranks are evaluated automatically:
 1. **Recruit** (default)
-2. **Explorer**: 60+ confirmed TC
-3. **Test Pilot**: 250+ TC + 2 structured reports
-4. **Founders Circle**: 900+ TC OR top 15 all-time
+2. **Explorer**: 60+ confirmed Gems
+3. **Test Pilot**: 250+ Gems + 2 structured reports
+4. **Founders Circle**: 900+ Gems OR top 15 all-time
 
 Discord roles are automatically synced when ranks change.
 
@@ -97,14 +97,14 @@ The bot maintains compatibility:
 
 ### Safety Features
 - All submissions are auditable (never deleted)
-- TC totals are recalculated after every review
+- Gems totals are recalculated after every review
 - Rank evaluation happens automatically
 - Membership sync runs nightly as safety net
 
 ### Google Sheets Integration
 - Polls every 5 minutes for new survey submissions
 - Requires Google Service Account with Sheets API access
-- Auto-approves survey submissions (3 TC)
+- Auto-approves survey submissions (3 Gems)
 - Stores Google response metadata in payload
 
 ## Configuration
@@ -113,7 +113,7 @@ All settings are in `.env`:
 - Discord bot token and guild ID
 - Database connection
 - Channel IDs for announcements
-- TC scoring constants
+- Gems scoring constants
 - Rank thresholds
 - Google Sheets credentials
 
@@ -138,7 +138,7 @@ Before going live:
 - [ ] User upsert works
 - [ ] Membership sync works (assign Tester Recruit role)
 - [ ] Submissions create correctly
-- [ ] TC totals calculate correctly
+- [ ] Gems totals calculate correctly
 - [ ] Rank evaluation works
 - [ ] Leaderboard displays correctly
 - [ ] Admin commands work

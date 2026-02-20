@@ -29,19 +29,19 @@ export class RewardCommand {
     const embed = new EmbedBuilder()
       .setTitle('🎁 Program Rewards')
       .setDescription(
-        'Here are the rewards available at the end of the Founders Circle program. Keep testing and earning TC to unlock them!',
+        'Here are the rewards available at the end of the Founders Circle program. Keep testing and earning <:gem:1> to unlock them!',
       )
       .setColor(0x5865f2)
       .addFields(
         {
-          name: '💎 TC Reward Store',
+          name: '💎 <:gem:1> Reward Store',
           value:
             '```\n' +
-            ' 100 TC → Small Exclusive Pack\n' +
-            ' 250 TC → Medium Exclusive Pack\n' +
-            ' 500 TC → Large Exclusive Pack\n' +
-            ' 800 TC → Elite Exclusive Pack\n' +
-            '1200 TC → Founder-Only Collectible\n' +
+            ' 100 <:gem:1> → Small Exclusive Pack\n' +
+            ' 250 <:gem:1> → Medium Exclusive Pack\n' +
+            ' 500 <:gem:1> → Large Exclusive Pack\n' +
+            ' 800 <:gem:1> → Elite Exclusive Pack\n' +
+            '1200 <:gem:1> → Founder-Only Collectible\n' +
             '```',
           inline: false,
         },
@@ -55,7 +55,7 @@ export class RewardCommand {
         },
       )
       .setFooter({
-        text: 'Use /founders profile to check your current TC • Use /leaderboard to see rankings',
+        text: 'Use /founders profile to check your current <:gem:1> • Use /leaderboard to see rankings',
       })
       .setTimestamp();
 

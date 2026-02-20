@@ -305,14 +305,14 @@ export class GoogleSheetsService {
         // Continue processing - user might be added to tester army later via sync
       }
 
-      // Get report type (column D: "Type of report" - e.g. "Balance Analysis (30 TC)")
+      // Get report type (column D: "Type of report" - e.g. "Balance Analysis (30 Gems)")
       const reportTypeIndex = columnMap['reportType'] ?? 3;
       const reportTypeStr = row[reportTypeIndex]?.toString().trim() || '';
       const reportTypeLower = reportTypeStr.toLowerCase();
 
-      // Parse points from Type of report if no separate points column: "(30 TC)" or "(25)"
+      // Parse points from Type of report if no separate points column: "(30 Gems)" or "(25)" or "(30 TC)" (backward compatible)
       let pointsFromType: number | null = null;
-      const tcMatch = reportTypeStr.match(/\((\d+)\s*(?:TC)?\)/i);
+      const tcMatch = reportTypeStr.match(/\((\d+)\s*(?:Gems|TC)?\)/i);
       if (tcMatch) {
         pointsFromType = parseInt(tcMatch[1], 10);
       }

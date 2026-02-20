@@ -136,24 +136,24 @@ export class ParticipateCommand {
       // Create buttons (only if URLs are valid) - in the requested order
       const buttons: ButtonBuilder[] = [];
       
-      // 1. Balance Analysis (30 TC)
-      const balanceBtn = createButtonIfValid('Balance Analysis (30 TC)', balanceUrl);
+      // 1. Balance Analysis (30 Gems)
+      const balanceBtn = createButtonIfValid('Balance Analysis (30 Gems)', balanceUrl);
       if (balanceBtn) buttons.push(balanceBtn);
       
-      // 2. Bug with Screenshot (5 TC)
-      const screenshotBtn = createButtonIfValid('Bug with Screenshot (5 TC)', screenshotUrl);
+      // 2. Bug with Screenshot (5 Gems)
+      const screenshotBtn = createButtonIfValid('Bug with Screenshot (5 Gems)', screenshotUrl);
       if (screenshotBtn) buttons.push(screenshotBtn);
       
-      // 3. Bug with Reproduction Steps (25 TC)
-      const bugReproBtn = createButtonIfValid('Bug with Reproduction Steps (25 TC)', bugReproUrl);
+      // 3. Bug with Reproduction Steps (25 Gems)
+      const bugReproBtn = createButtonIfValid('Bug with Reproduction Steps (25 Gems)', bugReproUrl);
       if (bugReproBtn) buttons.push(bugReproBtn);
       
-      // 4. Bug with Video (40 TC)
-      const bugVideoBtn = createButtonIfValid('Bug with Video (40 TC)', bugVideoUrl);
+      // 4. Bug with Video (40 Gems)
+      const bugVideoBtn = createButtonIfValid('Bug with Video (40 Gems)', bugVideoUrl);
       if (bugVideoBtn) buttons.push(bugVideoBtn);
       
-      // 5. Re-test Confirmation (15 TC)
-      const retestBtn = createButtonIfValid('Re-test Confirmation (15 TC)', retestUrl);
+      // 5. Re-test Confirmation (15 Gems)
+      const retestBtn = createButtonIfValid('Re-test Confirmation (15 Gems)', retestUrl);
       if (retestBtn) buttons.push(retestBtn);
       
       // 6. Structured Report button - interactive (not link) to show build selection
@@ -201,32 +201,32 @@ export class ParticipateCommand {
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 Participate in Tester Army')
-        .setDescription('Click the buttons below to submit your contributions. Each submission type awards different TC points.')
+        .setDescription('Click the buttons below to submit your contributions. Each submission type awards different <:gem:1> points.')
         .setColor(0x5865f2)
         .addFields(
           {
             name: '📸 Bug with screenshot',
-            value: '5 TC',
+            value: '5 <:gem:1>',
             inline: true,
           },
           {
             name: '🐛 Bug with Reproduction Steps',
-            value: '25 TC',
+            value: '25 <:gem:1>',
             inline: true,
           },
           {
             name: '🎥 Bug with Video',
-            value: '40 TC',
+            value: '40 <:gem:1>',
             inline: true,
           },
           {
             name: '⚖️ Balance Analysis',
-            value: '30 TC',
+            value: '30 <:gem:1>',
             inline: true,
           },
           {
             name: '✅ Re-test Confirmation',
-            value: '15 TC',
+            value: '15 <:gem:1>',
             inline: true,
           },
           {
@@ -260,7 +260,7 @@ export class ParticipateCommand {
         console.warn(`Buttons array length: ${buttons.length}`);
         console.warn('This means all URLs were invalid or missing. Check the logs above for details.');
         // Add a message if no buttons are available
-        const currentDescription = embed.data.description || 'Click the buttons below to submit your contributions. Each submission type awards different TC points.';
+        const currentDescription = embed.data.description || 'Click the buttons below to submit your contributions. Each submission type awards different <:gem:1> points.';
         embed.setDescription(
           currentDescription + '\n\n⚠️ **Note:** Form links are not configured. Please contact an administrator.'
         );

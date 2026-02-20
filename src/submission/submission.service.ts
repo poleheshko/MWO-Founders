@@ -15,7 +15,7 @@ import { CycleService } from '../cycle/cycle.service';
 @Injectable()
 export class SubmissionService {
   private readonly logger = new Logger(SubmissionService.name);
-  private readonly tcConfig: Record<string, number>;
+  private readonly gemsConfig: Record<string, number>;
 
   constructor(
     @InjectRepository(Submission)
@@ -26,16 +26,16 @@ export class SubmissionService {
     @Inject(forwardRef(() => RankService))
     private readonly rankService: RankService,
   ) {
-    const tc = this.configService.get('tc');
-    this.tcConfig = {
-      quick_test: tc.quickTest,
-      survey: tc.survey,
-      screenshot: tc.screenshot,
-      bug_repro: tc.bugRepro,
-      bug_video: tc.bugVideo,
-      balance_analysis: tc.balanceAnalysis,
-      retest: tc.retest,
-      shipped_bonus: tc.shippedBonus,
+    const gems = this.configService.get('gems');
+    this.gemsConfig = {
+      quick_test: gems.quickTest,
+      survey: gems.survey,
+      screenshot: gems.screenshot,
+      bug_repro: gems.bugRepro,
+      bug_video: gems.bugVideo,
+      balance_analysis: gems.balanceAnalysis,
+      retest: gems.retest,
+      shipped_bonus: gems.shippedBonus,
       structured_report_bonus: 0, // Set at award time
       video_session: 0,
       playtime_minimum: 0,
@@ -85,7 +85,7 @@ export class SubmissionService {
     excludeSubmissionId?: string,
   ): Promise<number> {
     if (!this.isCappedType(type) || tcAwarded <= 0) return tcAwarded;
-    const maxPerBuild = this.configService.get<number>('build.maxTcPerBuild') ?? 200;
+    const maxPerBuild = this.configService.get<number>('build.maxGemsPerBuild') ?? 1000;
     const existing = await this.getCappedTcForUserInBuild(
       discordUserId,
       cycleId,
@@ -99,12 +99,12 @@ export class SubmissionService {
     // Special handling for bug submissions
     if (type === 'bug_repro' || type === 'bug_video') {
       if (payload.hasVideo || payload.evidenceUrls?.some((url: string) => url.includes('video'))) {
-        return this.tcConfig.bug_video;
+        return this.gemsConfig.bug_video;
       }
-      return this.tcConfig.bug_repro;
+      return this.gemsConfig.bug_repro;
     }
 
-    return this.tcConfig[type] || 0;
+    return this.gemsConfig[type] || 0;
   }
 
   async createSubmission(
@@ -172,7 +172,7 @@ export class SubmissionService {
       }
     }
 
-    // Apply 200 TC per build cap for normal submissions
+    // Apply 1000 Gems per build cap for normal submissions
     if (status === 'approved' && tcAwarded > 0) {
       tcAwarded = await this.applyBuildCap(discordUserId, cycleId || null, type, tcAwarded);
     }
@@ -372,7 +372,7 @@ export class SubmissionService {
       where: { discordUserId },
     });
 
-    // Calculate pending TC - only count submissions that are truly pending
+    // Calculate pending Gems - only count submissions that are truly pending
     // For QA Please Check status, only count as pending if build version is not set
     const tcPending = submissions
       .filter((s) => {
@@ -388,7 +388,7 @@ export class SubmissionService {
       })
       .reduce((sum, s) => sum + s.tcProposed, 0);
 
-    // Calculate confirmed TC - only approved submissions with awarded points
+    // Calculate confirmed Gems - only approved submissions with awarded points
     // For QA Please Check, only count if build version is set
     const tcConfirmed = submissions
       .filter((s) => {
@@ -538,7 +538,7 @@ export class SubmissionService {
 
   /**
    * Award delivered features points to multiple users at once.
-   * These are exempt from the 200 TC per build cap.
+   * These are exempt from the 1000 Gems per build cap.
    */
   async awardDeliveredFeatures(
     discordUserIds: string[],
