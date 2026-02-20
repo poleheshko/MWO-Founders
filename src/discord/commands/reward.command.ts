@@ -5,10 +5,14 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { PlayerService } from '../../player/player.service';
+import { DiscordService } from '../discord.service';
 
 @Injectable()
 export class RewardCommand {
-  constructor(private readonly playerService: PlayerService) {}
+  constructor(
+    private readonly playerService: PlayerService,
+    private readonly discordService: DiscordService,
+  ) {}
 
   data = new SlashCommandBuilder()
     .setName('reward')
@@ -26,35 +30,35 @@ export class RewardCommand {
       return;
     }
 
+    const gem = this.discordService.getGemEmoji();
+
     const embed = new EmbedBuilder()
       .setTitle('🎁 Program Rewards')
       .setDescription(
-        'Here are the rewards available in the Founders Circle program. Keep testing and earning gems!',
+        `Here are the rewards available in the Founders Circle program. Keep testing and earning ${gem} gems!`,
       )
       .setColor(0x5865f2)
       .addFields(
         {
-          name: '💰 Testing Benefits',
+          name: `💰 Testing Benefits`,
           value:
             '**Participation:**\n' +
-            '`100 gems` every week (800 in total)\n\n' +
+            `100 ${gem} every week (800 in total)\n\n` +
             '**First experience video (min. 5 min):**\n' +
-            '`400 gems` every week (3200 in total)\n\n' +
+            `400 ${gem} every week (3200 in total)\n\n` +
             '**Deep analysis packages** (screens + written feedback):\n' +
-            '`25-40 gems` for proven bug (up to 1000 gems per week)\n\n' +
+            `25-40 ${gem} for proven bug (up to 1000 ${gem} per week)\n\n` +
             '> Quality > quantity.',
           inline: false,
         },
         {
           name: '🏆 Weekly Game Winners',
           value:
-            '```\n' +
-            '🥇 1st place  →  2000 gems\n' +
-            '🥈 2nd place  →  1000 gems\n' +
-            '🥉 3rd place  →   750 gems\n' +
-            '   4-10th     →   500 gems\n' +
-            '   11-20th    →   100 gems\n' +
-            '```',
+            `🥇 1st place  →  2000 ${gem}\n` +
+            `🥈 2nd place  →  1000 ${gem}\n` +
+            `🥉 3rd place  →   750 ${gem}\n` +
+            `4-10th     →   500 ${gem}\n` +
+            `11-20th    →   100 ${gem}`,
           inline: false,
         },
       )
