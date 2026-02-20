@@ -55,6 +55,10 @@ export class GoogleSheetsService {
         credentials = JSON.parse(fs.readFileSync(serviceAccountKey, 'utf8'));
       }
 
+      if (credentials.private_key) {
+        credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+      }
+
       const auth = new google.auth.GoogleAuth({
         credentials,
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
