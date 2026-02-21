@@ -63,7 +63,7 @@ export class LeaderboardCommand {
     const leaderboard = await this.submissionService.getLeaderboard(
       scope,
       cycleId,
-      10,
+      20,
     );
 
     if (leaderboard.length === 0) {
@@ -89,7 +89,7 @@ export class LeaderboardCommand {
           .join('\n'),
       )
       .setFooter({
-        text: '📌 Leaderboard includes all points (Confirmed + Pending + Declined). Points cannot be decreased after admin review.',
+        text: '📌 Leaderboard includes all points (Confirmed + Pending + Declined). Points can be decreased after admin review.',
       })
       .setTimestamp();
 
