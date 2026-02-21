@@ -88,6 +88,9 @@ export class LeaderboardCommand {
           )
           .join('\n'),
       )
+      .setFooter({
+        text: '📌 Leaderboard includes all points (Confirmed + Pending + Declined). Points cannot be decreased after admin review.',
+      })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });

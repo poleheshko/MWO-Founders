@@ -489,10 +489,9 @@ export class SubmissionService {
     const query = this.submissionRepository
       .createQueryBuilder('submission')
       .select('submission.discordUserId', 'discordUserId')
-      .addSelect('SUM(submission.tc_awarded)', 'totalTc')
-      .where('submission.status = :status', { status: 'approved' })
+      .addSelect('SUM(submission.tc_proposed)', 'totalTc')
       .groupBy('submission.discordUserId')
-      .orderBy('SUM(submission.tc_awarded)', 'DESC')
+      .orderBy('SUM(submission.tc_proposed)', 'DESC')
       .limit(limit);
 
     if (scope === 'week' && cycleId) {
