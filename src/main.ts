@@ -1,3 +1,11 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+delete process.env.PGHOST;
+delete process.env.PGPORT;
+delete process.env.PGUSER;
+delete process.env.PGPASSWORD;
+delete process.env.PGDATABASE;
+
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
@@ -27,7 +35,11 @@ if (result.error && 'code' in result.error && result.error.code === 'ENOENT') {
   if (!result.error) console.log('Loaded .env from parent dir:', envPathParent);
 }
 if (result.error) {
-  console.error('❌ Error loading .env file:', result.error);
+  if ('code' in result.error && (result.error as any).code === 'ENOENT') {
+    console.log('ℹ️ No .env file found, using environment variables from system');
+  } else {
+    console.error('❌ Error loading .env file:', result.error);
+  }
 } else {
   const parsed = result.parsed || {};
   const allKeys = Object.keys(parsed);

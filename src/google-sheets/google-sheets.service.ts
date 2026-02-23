@@ -55,6 +55,21 @@ export class GoogleSheetsService {
         credentials = JSON.parse(fs.readFileSync(serviceAccountKey, 'utf8'));
       }
 
+      if (credentials.private_key) {
+        let pk = credentials.private_key;
+        pk = pk.replace(/\\n/g, '\n');
+        pk = pk.replace(/\r\n/g, '\n');
+        pk = pk.trim();
+        if (!pk.startsWith('-----BEGIN')) {
+          this.logger.error(`Private key does not start with expected PEM header. First 30 chars: "${pk.substring(0, 30)}"`);
+        }
+        if (!pk.endsWith('-----')) {
+          this.logger.error(`Private key does not end with expected PEM footer. Last 30 chars: "${pk.substring(pk.length - 30)}"`);
+        }
+        this.logger.log(`Private key format check: starts="${pk.substring(0, 27)}", length=${pk.length}, newlines=${(pk.match(/\n/g) || []).length}`);
+        credentials.private_key = pk;
+      }
+
       const auth = new google.auth.GoogleAuth({
         credentials,
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],

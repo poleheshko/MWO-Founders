@@ -5,10 +5,14 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { PlayerService } from '../../player/player.service';
+import { DiscordService } from '../discord.service';
 
 @Injectable()
 export class RewardCommand {
-  constructor(private readonly playerService: PlayerService) {}
+  constructor(
+    private readonly playerService: PlayerService,
+    private readonly discordService: DiscordService,
+  ) {}
 
   data = new SlashCommandBuilder()
     .setName('reward')
@@ -26,36 +30,40 @@ export class RewardCommand {
       return;
     }
 
+    const gem = this.discordService.getGemEmoji();
+
     const embed = new EmbedBuilder()
       .setTitle('🎁 Program Rewards')
       .setDescription(
-        'Here are the rewards available at the end of the Founders Circle program. Keep testing and earning <:gem:1> to unlock them!',
+        `Here are the rewards available in the Founders Circle program. Keep testing and earning ${gem} gems!`,
       )
       .setColor(0x5865f2)
       .addFields(
         {
-          name: '💎 <:gem:1> Reward Store',
+          name: `💰 Testing Benefits`,
           value:
-            '```\n' +
-            ' 100 <:gem:1> → Small Exclusive Pack\n' +
-            ' 250 <:gem:1> → Medium Exclusive Pack\n' +
-            ' 500 <:gem:1> → Large Exclusive Pack\n' +
-            ' 800 <:gem:1> → Elite Exclusive Pack\n' +
-            '1200 <:gem:1> → Founder-Only Collectible\n' +
-            '```',
+            '**Participation:**\n' +
+            `100 ${gem} every week (800 in total)\n\n` +
+            '**First experience video (min. 5 min):**\n' +
+            `400 ${gem} every week (3200 in total)\n\n` +
+            '**Deep analysis packages** (screens + written feedback):\n' +
+            `25-40 ${gem} for proven bug (up to 1000 ${gem} per week)\n\n` +
+            '> Quality > quantity.',
           inline: false,
         },
         {
-          name: '🏆 Rank-Based Rewards',
+          name: '🏆 Weekly Game Winners',
           value:
-            '**Top 10** → Founders Launch Pack\n' +
-            '**Top 50** → Test Pilot Launch Pack\n' +
-            '**All Finishers** → Season Finisher Collectible',
+            `🥇 1st place  →  2000 ${gem}\n` +
+            `🥈 2nd place  →  1000 ${gem}\n` +
+            `🥉 3rd place  →   750 ${gem}\n` +
+            `4-10th     →   500 ${gem}\n` +
+            `11-20th    →   100 ${gem}`,
           inline: false,
         },
       )
       .setFooter({
-        text: 'Use /founders profile to check your current <:gem:1> • Use /leaderboard to see rankings',
+        text: 'Use /founders profile to check your current gems • Use /leaderboard to see rankings',
       })
       .setTimestamp();
 

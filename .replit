@@ -4,9 +4,46 @@ entrypoint = "dist/main.js"
 run = "npm run start:prod"
 alwaysRun = ["npm install", "npm run build"]
 build = "npm run build"
+modules = ["nodejs-20"]
 
 [languages.nodejs]
 pattern = "**/*.{js,ts,json}"
 
 [nix]
 channel = "stable-23_11"
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Bot"
+
+[[workflows.workflow]]
+name = "Start Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build && npm run start:prod"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "vm"
+publicDir = "dist"
+run = ["npm", "run", "start:prod"]
+build = ["npm", "run", "build"]

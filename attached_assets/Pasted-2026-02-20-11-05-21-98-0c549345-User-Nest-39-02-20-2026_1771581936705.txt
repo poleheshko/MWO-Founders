@@ -1,0 +1,72 @@
+2026-02-20 11:05:21.98
+0c549345
+User
+[Nest] 39 - 02/20/2026, 10:05:21 AM LOG [GoogleSheetsService] Manual synchronization triggered
+2026-02-20 11:05:21.98
+0c549345
+User
+[Nest] 39 - 02/20/2026, 10:05:21 AM ERROR [GoogleSheetsService] Error: error:1E08010C:DECODER routines::unsupported
+2026-02-20 11:05:21.98
+0c549345
+User
+[Nest] 39 - 02/20/2026, 10:05:21 AM ERROR [GoogleSheetsService] Error polling Google Sheets:
+2026-02-20 11:05:21.98
+0c549345
+User
+at JWT.getRequestMetadataAsync (/home/runner/workspace/node_modules/google-auth-library/build/src/auth/oauth2client.js:333:28) {
+2026-02-20 11:05:21.98
+0c549345
+User
+code: 'ERR_OSSL_UNSUPPORTED'
+2026-02-20 11:05:21.98
+0c549345
+User
+at Object.sign (/home/runner/workspace/node_modules/jwa/index.js:166:45)
+2026-02-20 11:05:21.98
+0c549345
+User
+at GoogleToken._GoogleToken_requestToken (/home/runner/workspace/node_modules/gtoken/build/src/index.js:235:27)
+2026-02-20 11:05:21.98
+0c549345
+User
+reason: 'unsupported',
+2026-02-20 11:05:21.98
+0c549345
+User
+at GoogleToken._GoogleToken_getTokenAsyncInner (/home/runner/workspace/node_modules/gtoken/build/src/index.js:180:97)
+2026-02-20 11:05:21.98
+0c549345
+User
+at GoogleToken.getToken (/home/runner/workspace/node_modules/gtoken/build/src/index.js:110:102)
+2026-02-20 11:05:21.98
+0c549345
+User
+at Object.jwsSign [as sign] (/home/runner/workspace/node_modules/jws/lib/sign-stream.js:32:24)
+2026-02-20 11:05:21.98
+0c549345
+User
+at JWT.refreshTokenNoCache (/home/runner/workspace/node_modules/google-auth-library/build/src/auth/jwtclient.js:173:36)
+2026-02-20 11:05:21.98
+0c549345
+User
+at GoogleToken._GoogleToken_getTokenAsync (/home/runner/workspace/node_modules/gtoken/build/src/index.js:160:173)
+2026-02-20 11:05:21.98
+0c549345
+User
+Error syncing Google Sheets: Error: error:1E08010C:DECODER routines::unsupported
+2026-02-20 11:05:21.98
+0c549345
+User
+}
+2026-02-20 11:05:21.98
+0c549345
+User
+library: 'DECODER routines',
+2026-02-20 11:05:21.98
+0c549345
+User
+at Sign.sign (node:internal/crypto/sig:128:29)
+2026-02-20 11:05:21.98
+0c549345
+User
+at JWT.refreshToken (/home/runner/workspace/node_modules/google-auth-library/build/src/auth/oauth2client.js:187:24)

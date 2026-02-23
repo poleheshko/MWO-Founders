@@ -69,11 +69,11 @@ export class AdminCommands {
 
   tcAdjust = new SlashCommandBuilder()
     .setName('tc')
-    .setDescription('Adjust Gems manually')
+    .setDescription('Adjust gems manually')
     .addSubcommand((subcommand) =>
       subcommand
         .setName('adjust')
-        .setDescription('Adjust Gems for a user')
+        .setDescription('Adjust gems for a user')
         .addUserOption((option) =>
           option.setName('user').setDescription('User').setRequired(true),
         )
@@ -114,7 +114,7 @@ export class AdminCommands {
 
   awardDeliveredFeatures = new SlashCommandBuilder()
     .setName('award')
-    .setDescription('Award delivered features points (exempt from 1000 Gems cap)')
+    .setDescription('Award delivered features points (exempt from 200 gems cap)')
     .addSubcommand((subcommand) =>
       subcommand
         .setName('delivered')
@@ -128,7 +128,7 @@ export class AdminCommands {
         .addIntegerOption((option) =>
           option
             .setName('points')
-            .setDescription('Gems points per user')
+            .setDescription('Gems per user')
             .setRequired(true),
         )
         .addStringOption((option) =>
@@ -181,8 +181,8 @@ export class AdminCommands {
         .setDescription(
           `**${buildName}** is now live!\n\n` +
             'Download the build and start testing. Use `/participate` to submit your contributions.\n\n' +
-            'Each tester can earn up to **1000 <:gem:1>** per build from regular submissions. ' +
-            'Award bonus points for any delivered feature or milestone. Points are exempt from the 1000 <:gem:1> per build cap.',
+            'Each tester can earn up to **200 gems** per build from regular submissions. ' +
+            'Award bonus points for any delivered feature or milestone. Points are exempt from the 200 gems per build cap.',
         )
         .setColor(0x57f287)
         .addFields(
@@ -208,7 +208,7 @@ export class AdminCommands {
           },
         )
         .setFooter({
-          text: 'Use /participate for submission links • Use /founders profile to check your <:gem:1>',
+          text: 'Use /participate for submission links • Use /founders profile to check your gems',
         })
         .setTimestamp();
 
@@ -326,7 +326,8 @@ export class AdminCommands {
           continue;
         }
 
-        const message = `🎉 Player <@${discordUserId}> received **${points} <:gem:1>** for **${reason}**. Thank you for your contribution!`;
+        const gem = this.discordService.getGemEmoji();
+        const message = `🎉 Player <@${discordUserId}> received **${points}** ${gem} for **${reason}**. Thank you for your contribution!`;
 
         try {
           await this.discordService.sendToChannel(highlightsChannelId, message);
@@ -344,7 +345,8 @@ export class AdminCommands {
       id.startsWith('temp_') ? id : `<@${id}>`,
     );
 
-    let responseContent = `✅ Awarded **${points} <:gem:1>** (${reason}) to **${submissions.length}** user(s).\n\n`;
+    const gemEmoji = this.discordService.getGemEmoji();
+    let responseContent = `✅ Awarded **${points}** ${gemEmoji} (${reason}) to **${submissions.length}** user(s).\n\n`;
 
     if (sentMessages.length > 0) {
       responseContent += `📢 **Highlights message sent for ${sentMessages.length} user(s):**\n${successMentions.join(', ')}\n\n`;
@@ -395,7 +397,7 @@ export class AdminCommands {
     }
 
     await interaction.editReply({
-      content: `✅ Shipped bonus awarded! +100 <:gem:1> to <@${userId}>`,
+      content: `✅ Shipped bonus awarded! +100 ${this.discordService.getGemEmoji()} to <@${userId}>`,
     });
   }
 
@@ -424,7 +426,7 @@ export class AdminCommands {
     );
 
     await interaction.editReply({
-      content: `✅ <:gem:1> adjusted: ${delta > 0 ? '+' : ''}${delta} <:gem:1> for <@${user.id}>\nReason: ${reason}`,
+      content: `✅ Gems adjusted: ${delta > 0 ? '+' : ''}${delta} ${this.discordService.getGemEmoji()} for <@${user.id}>\nReason: ${reason}`,
     });
   }
 
@@ -456,7 +458,7 @@ export class AdminCommands {
           ? leaderboard
               .map(
                 (entry, index) =>
-                  `${index + 1}. **${entry.username}** - ${entry.totalTc} <:gem:1>`,
+                  `${index + 1}. **${entry.username}** - ${entry.totalTc} ${this.discordService.getGemEmoji()}`,
               )
               .join('\n')
           : 'No submissions this week.',

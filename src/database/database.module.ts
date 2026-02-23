@@ -21,24 +21,19 @@ import { Issue } from './entities/issue.entity';
         };
 
         if (dbConfig.type === 'postgres' && dbConfig.url) {
-          config.url = dbConfig.url;
-          // Explicit SSL configuration for Neon and other cloud providers
-          // Neon requires SSL connections
-          if (dbConfig.url.includes('neon.tech')) {
-            config.ssl = {
-              rejectUnauthorized: false, // Required for Neon
-            };
-          } else if (dbConfig.url.includes('sslmode=require') || dbConfig.url.includes('sslmode=prefer')) {
-            // For other PostgreSQL providers that require SSL
-            config.ssl = {
-              rejectUnauthorized: false,
-            };
-          }
-          // Connection pool settings for better reliability
+          const dbUrl = new URL(dbConfig.url);
+          config.host = dbUrl.hostname;
+          config.port = parseInt(dbUrl.port || '5432', 10);
+          config.username = decodeURIComponent(dbUrl.username);
+          config.password = decodeURIComponent(dbUrl.password);
+          config.database = dbUrl.pathname.replace(/^\//, '');
+          config.ssl = {
+            rejectUnauthorized: false,
+          };
           config.extra = {
-            max: 10, // Maximum pool size
-            connectionTimeoutMillis: 30000, // 30 second timeout
-            idleTimeoutMillis: 30000,
+            ssl: {
+              rejectUnauthorized: false,
+            },
           };
         } else if (dbConfig.type === 'sqlite') {
           config.database = dbConfig.path;

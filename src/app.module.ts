@@ -10,6 +10,7 @@ import { SubmissionModule } from './submission/submission.module';
 import { CycleModule } from './cycle/cycle.module';
 import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { HealthController } from './health.controller';
 import { config } from './config/config';
 
 @Module({
@@ -29,5 +30,6 @@ import { config } from './config/config';
     GoogleSheetsModule,
     SchedulerModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

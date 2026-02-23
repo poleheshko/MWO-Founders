@@ -141,7 +141,7 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
       roles,
     );
 
-    // Evaluate rank for new member (will be recruit if no Gems)
+    // Evaluate rank for new member (will be recruit if no gems)
     const tester = await this.testerArmyService.getTester(member.id);
     if (tester) {
       await this.rankService.evaluateRank(member.id);
@@ -209,6 +209,11 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
    * @param content Message content
    * @returns true if message was sent successfully, false otherwise
    */
+  getGemEmoji(): string {
+    const emoji = this.client?.emojis?.cache?.find((e) => e.name === 'gem~1');
+    return emoji ? `<:gem~1:${emoji.id}>` : '💎';
+  }
+
   async sendDM(userId: string, content: string): Promise<boolean> {
     try {
       const user = await this.client.users.fetch(userId);

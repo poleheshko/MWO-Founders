@@ -7,6 +7,7 @@ import {
 import { SubmissionService } from '../../submission/submission.service';
 import { CycleService } from '../../cycle/cycle.service';
 import { PlayerService } from '../../player/player.service';
+import { DiscordService } from '../discord.service';
 
 @Injectable()
 export class LeaderboardCommand {
@@ -14,6 +15,7 @@ export class LeaderboardCommand {
     private readonly submissionService: SubmissionService,
     private readonly cycleService: CycleService,
     private readonly playerService: PlayerService,
+    private readonly discordService: DiscordService,
   ) {}
 
   data = new SlashCommandBuilder()
@@ -61,7 +63,7 @@ export class LeaderboardCommand {
     const leaderboard = await this.submissionService.getLeaderboard(
       scope,
       cycleId,
-      10,
+      15,
     );
 
     if (leaderboard.length === 0) {
@@ -70,6 +72,8 @@ export class LeaderboardCommand {
       });
       return;
     }
+
+    const gem = this.discordService.getGemEmoji();
 
     const embed = new EmbedBuilder()
       .setTitle(
@@ -80,10 +84,13 @@ export class LeaderboardCommand {
         leaderboard
           .map(
             (entry, index) =>
-              `${this.getMedal(index)} **${entry.username}** - ${entry.totalTc} <:gem:1>`,
+              `${this.getMedal(index)} **${entry.username}** - ${entry.totalTc} ${gem}`,
           )
           .join('\n'),
       )
+      .setFooter({
+        text: '📌 Showing TOP 15. Leaderboard includes all points (Confirmed + Pending + Declined). Points can be decreased after admin review.',
+      })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });

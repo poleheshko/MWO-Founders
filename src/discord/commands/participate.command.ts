@@ -10,6 +10,7 @@ import {
 } from 'discord.js';
 import { ConfigService } from '@nestjs/config';
 import { PlayerService } from '../../player/player.service';
+import { DiscordService } from '../discord.service';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { parse as dotenvParse } from 'dotenv';
@@ -19,6 +20,7 @@ export class ParticipateCommand {
   constructor(
     private readonly configService: ConfigService,
     private readonly playerService: PlayerService,
+    private readonly discordService: DiscordService,
   ) {}
 
   data = new SlashCommandBuilder()
@@ -136,24 +138,24 @@ export class ParticipateCommand {
       // Create buttons (only if URLs are valid) - in the requested order
       const buttons: ButtonBuilder[] = [];
       
-      // 1. Balance Analysis (30 Gems)
-      const balanceBtn = createButtonIfValid('Balance Analysis (30 Gems)', balanceUrl);
+      // 1. Balance Analysis (30 gems)
+      const balanceBtn = createButtonIfValid('Balance Analysis (30 gems)', balanceUrl);
       if (balanceBtn) buttons.push(balanceBtn);
       
-      // 2. Bug with Screenshot (5 Gems)
-      const screenshotBtn = createButtonIfValid('Bug with Screenshot (5 Gems)', screenshotUrl);
+      // 2. Bug with Screenshot (5 gems)
+      const screenshotBtn = createButtonIfValid('Bug with Screenshot (5 gems)', screenshotUrl);
       if (screenshotBtn) buttons.push(screenshotBtn);
       
-      // 3. Bug with Reproduction Steps (25 Gems)
-      const bugReproBtn = createButtonIfValid('Bug with Reproduction Steps (25 Gems)', bugReproUrl);
+      // 3. Bug with Reproduction Steps (25 gems)
+      const bugReproBtn = createButtonIfValid('Bug with Reproduction Steps (25 gems)', bugReproUrl);
       if (bugReproBtn) buttons.push(bugReproBtn);
       
-      // 4. Bug with Video (40 Gems)
-      const bugVideoBtn = createButtonIfValid('Bug with Video (40 Gems)', bugVideoUrl);
+      // 4. Bug with Video (40 gems)
+      const bugVideoBtn = createButtonIfValid('Bug with Video (40 gems)', bugVideoUrl);
       if (bugVideoBtn) buttons.push(bugVideoBtn);
       
-      // 5. Re-test Confirmation (15 Gems)
-      const retestBtn = createButtonIfValid('Re-test Confirmation (15 Gems)', retestUrl);
+      // 5. Re-test Confirmation (15 gems)
+      const retestBtn = createButtonIfValid('Re-test Confirmation (15 gems)', retestUrl);
       if (retestBtn) buttons.push(retestBtn);
       
       // 6. Structured Report button - interactive (not link) to show build selection
@@ -199,34 +201,36 @@ export class ParticipateCommand {
       console.log(`Total buttons: ${buttons.length}`);
       console.log(`Will send components: ${components.length > 0 ? 'YES' : 'NO'}`);
 
+      const gem = this.discordService.getGemEmoji();
+
       const embed = new EmbedBuilder()
         .setTitle('🎯 Participate in Tester Army')
-        .setDescription('Click the buttons below to submit your contributions. Each submission type awards different <:gem:1> points.')
+        .setDescription(`Click the buttons below to submit your contributions. Each submission type awards different ${gem} gems.`)
         .setColor(0x5865f2)
         .addFields(
           {
             name: '📸 Bug with screenshot',
-            value: '5 <:gem:1>',
+            value: `5 ${gem}`,
             inline: true,
           },
           {
             name: '🐛 Bug with Reproduction Steps',
-            value: '25 <:gem:1>',
+            value: `25 ${gem}`,
             inline: true,
           },
           {
             name: '🎥 Bug with Video',
-            value: '40 <:gem:1>',
+            value: `40 ${gem}`,
             inline: true,
           },
           {
             name: '⚖️ Balance Analysis',
-            value: '30 <:gem:1>',
+            value: `30 ${gem}`,
             inline: true,
           },
           {
             name: '✅ Re-test Confirmation',
-            value: '15 <:gem:1>',
+            value: `15 ${gem}`,
             inline: true,
           },
           {
@@ -260,7 +264,7 @@ export class ParticipateCommand {
         console.warn(`Buttons array length: ${buttons.length}`);
         console.warn('This means all URLs were invalid or missing. Check the logs above for details.');
         // Add a message if no buttons are available
-        const currentDescription = embed.data.description || 'Click the buttons below to submit your contributions. Each submission type awards different <:gem:1> points.';
+        const currentDescription = embed.data.description || 'Click the buttons below to submit your contributions. Each submission type awards different gems.';
         embed.setDescription(
           currentDescription + '\n\n⚠️ **Note:** Form links are not configured. Please contact an administrator.'
         );
