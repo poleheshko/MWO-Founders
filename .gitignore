@@ -45,7 +45,7 @@ lerna-debug.log*
 *.sqlite3
 /data
 
-# Google Service Account Key
+# Google Service Account Key & credentials (never commit secrets)
 service-account-key.json
 *-key.json
-credentials/google-key.pem
+credentials/
