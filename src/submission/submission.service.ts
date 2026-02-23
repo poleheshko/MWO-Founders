@@ -518,6 +518,52 @@ export class SubmissionService {
     }));
   }
 
+  /**
+   * Returns a short leaderboard snippet centered on the user (for highlight messages).
+   * Format: "#20 username — 95 💎". The highlighted user's name is bolded.
+   * No ellipses before/after the list.
+   */
+  async getLeaderboardSnippetForUser(
+    discordUserId: string,
+    gemEmoji: string,
+    cycleId?: string,
+  ): Promise<string> {
+    const activeCycle = cycleId ? null : await this.cycleService.getActiveCycle();
+    const buildId = cycleId ?? activeCycle?.id ?? null;
+    if (!buildId) return '';
+
+    const full = await this.getLeaderboard('week', buildId, 100);
+    const idx = full.findIndex((e) => e.discordUserId === discordUserId);
+    if (idx < 0) return '';
+
+    const start = Math.max(0, idx - 1);
+    const end = Math.min(full.length, idx + 2);
+    const slice = full.slice(start, end);
+
+    const lines = slice.map((e, i) => {
+      const rank = start + i + 1;
+      const name = e.discordUserId === discordUserId ? `**${e.username}**` : e.username;
+      return `#${rank} ${name} — ${e.totalTc} ${gemEmoji}`;
+    });
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Returns the user's total gems for the active (or given) build, or null if not on leaderboard.
+   */
+  async getTotalGemsForUserInBuild(
+    discordUserId: string,
+    cycleId?: string,
+  ): Promise<number | null> {
+    const activeCycle = cycleId ? null : await this.cycleService.getActiveCycle();
+    const buildId = cycleId ?? activeCycle?.id ?? null;
+    if (!buildId) return null;
+    const full = await this.getLeaderboard('week', buildId, 500);
+    const entry = full.find((e) => e.discordUserId === discordUserId);
+    return entry ? entry.totalTc : null;
+  }
+
   async checkRateLimit(
     discordUserId: string,
     maxPerHour: number,

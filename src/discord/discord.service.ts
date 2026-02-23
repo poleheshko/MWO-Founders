@@ -194,6 +194,32 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Single source of truth for the "contribution rewarded" highlights message.
+   * Used by award delivered and tc_adjust so the format is always the same.
+   */
+  async buildContributionRewardedMessage(
+    discordUserId: string,
+    points: number,
+    reason: string,
+  ): Promise<string> {
+    const gem = this.getGemEmoji();
+    let message = `💎 **Contribution Rewarded**\n\n`;
+    message += `Founder <@${discordUserId}> received ${points} ${gem}\n`;
+    message += `Reason: ${reason}\n\n`;
+
+    const snippet = await this.submissionService.getLeaderboardSnippetForUser(
+      discordUserId,
+      gem,
+    );
+    if (snippet) {
+      message += `🏆 **Feedback Leaderboard**\n${snippet}\n\n`;
+    }
+
+    message += `Thank you for helping us shape Monopoly World.`;
+    return message;
+  }
+
   async sendEmbedToChannel(channelId: string, embed: EmbedBuilder) {
     const channel = (await this.client.channels.fetch(
       channelId,

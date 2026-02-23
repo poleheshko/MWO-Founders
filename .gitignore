@@ -48,3 +48,4 @@ lerna-debug.log*
 # Google Service Account Key
 service-account-key.json
 *-key.json
+credentials/google-key.pem

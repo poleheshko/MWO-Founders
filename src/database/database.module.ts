@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Player } from './entities/player.entity';
+import { PlayerBuildId } from './entities/player-build-id.entity';
 import { ArmyTester } from './entities/army-tester.entity';
 import { WeeklyCycle } from './entities/weekly-cycle.entity';
 import { Submission } from './entities/submission.entity';
@@ -15,7 +16,7 @@ import { Issue } from './entities/issue.entity';
         const dbConfig = configService.get('database');
         const config: any = {
           type: dbConfig.type === 'sqlite' ? 'sqlite' : 'postgres',
-          entities: [Player, ArmyTester, WeeklyCycle, Submission, Issue],
+          entities: [Player, PlayerBuildId, ArmyTester, WeeklyCycle, Submission, Issue],
           synchronize: process.env.NODE_ENV !== 'production', // Only in dev
           logging: process.env.NODE_ENV === 'development',
         };
@@ -45,6 +46,7 @@ import { Issue } from './entities/issue.entity';
     }),
     TypeOrmModule.forFeature([
       Player,
+      PlayerBuildId,
       ArmyTester,
       WeeklyCycle,
       Submission,

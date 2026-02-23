@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { DiscordService } from '../discord/discord.service';
 import { ConfigService } from '@nestjs/config';
@@ -20,11 +20,34 @@ export class SchedulerService {
     private readonly testerArmyService: TesterArmyService,
   ) {}
 
-  // Poll Google Sheets every 10 minutes
-  @Cron('0 */10 * * * *')
+  /**
+   * Google Sheets sync schedule:
+   * - Fri 10:00 – Mon 10:00: every hour (weekend testing window)
+   * - Rest of the week: every 6 hours (00:00, 06:00, 12:00, 18:00)
+   */
+  @Cron('0 * * * *') // Every hour at :00
   async pollGoogleSheets() {
-    this.logger.debug('Polling Google Sheets for new survey submissions');
-    await this.googleSheetsService.pollNewSubmissions();
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat (server local time)
+    const hour = now.getHours();
+
+    const isWeekendWindow =
+      (day === 5 && hour >= 10) || // Fri from 10:00
+      day === 6 || // Sat
+      day === 0 || // Sun
+      (day === 1 && hour <= 10); // Mon up to 10:00 inclusive (10:00 is last hourly)
+
+    if (isWeekendWindow) {
+      this.logger.debug('Polling Google Sheets (hourly – weekend window)');
+      await this.googleSheetsService.pollNewSubmissions();
+      return;
+    }
+
+    const sixHourSlots = [0, 6, 12, 18];
+    if (sixHourSlots.includes(hour)) {
+      this.logger.debug('Polling Google Sheets (every 6h – weekday)');
+      await this.googleSheetsService.pollNewSubmissions();
+    }
   }
 
   // Wednesday reminder

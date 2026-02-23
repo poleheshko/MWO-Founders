@@ -1,5 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
 import { google } from 'googleapis';
 import { SubmissionService } from '../submission/submission.service';
 import { PlayerService } from '../player/player.service';
@@ -7,6 +9,107 @@ import { TesterArmyService } from '../tester-army/tester-army.service';
 import { CycleService } from '../cycle/cycle.service';
 import { DiscordService } from '../discord/discord.service';
 import { QaStatus } from '../database/entities/submission.entity';
+
+/**
+ * Gdy w credentials jest "private_key": "NAZWA_ZMIENNEJ" (np. GOOGLE_API_KEY), zwraca wartość z env lub .env.
+ * Replit: process.env jest ustawiony z Secrets → używamy go. Lokalnie: fallback na .env z katalogu projektu.
+ * Żadnych nowych zmiennych konfiguracyjnych – .env bez zmian.
+ */
+function resolvePrivateKeyFromEnv(
+  envVarName: string,
+  serviceAccountKeySource: string,
+): string | null {
+  if (process.env[envVarName]) return process.env[envVarName] as string;
+  // Fallback tylko gdy to ścieżka do pliku (lokalnie). Na Replit = pełny JSON → nie wchodzimy tutaj.
+  const src = String(serviceAccountKeySource).trim();
+  const isPath = src.length > 0 && !src.startsWith('{') && (src.includes('/') || src.includes('\\') || src.endsWith('.json'));
+  if (!isPath) return null;
+
+  const cwd = process.cwd();
+  const envPaths: string[] = [
+    resolve(cwd, '.env'),
+    resolve(cwd, '..', '.env'),
+  ];
+  try {
+    const credPath = resolve(cwd, serviceAccountKeySource);
+    envPaths.push(resolve(dirname(dirname(credPath)), '.env'));
+  } catch {
+    // ignore
+  }
+  try {
+    const mainDir = require.main?.path;
+    if (mainDir) envPaths.push(resolve(mainDir, '..', '.env'));
+  } catch {
+    // ignore
+  }
+
+  for (const envPath of envPaths) {
+    if (!existsSync(envPath)) continue;
+    try {
+      const dotenv = require('dotenv');
+      dotenv.config({ path: envPath, override: true });
+      if (process.env[envVarName]) return process.env[envVarName] as string;
+      const result = dotenv.config({ path: envPath });
+      if (result.parsed && result.parsed[envVarName]) {
+        const v = result.parsed[envVarName];
+        if (typeof v === 'string' && v.replace(/\\n/g, '\n').trim().startsWith('-----BEGIN')) return v.replace(/\\n/g, '\n').trim();
+      }
+    } catch {
+      // ignore
+    }
+    const parsed = parseEnvKeyFromFile(envPath, envVarName);
+    if (parsed) return parsed;
+  }
+  if (envPaths.length > 0) {
+    try {
+      const fs = require('fs');
+      const summary = envPaths.map((p) => ({ path: p, exists: fs.existsSync(p) }));
+      console.warn('[GoogleSheets] GOOGLE_API_KEY not resolved. Paths:', JSON.stringify(summary, null, 0));
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function parseEnvKeyFromFile(envPath: string, envVarName: string): string | null {
+  try {
+    const buf = readFileSync(envPath, 'utf8');
+    let raw = buf.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\uFEFF/g, '');
+    const key = envVarName.trim();
+    const needles = [key + '="', key + ' ="', key + '=\u201C'];
+    let start = -1;
+    let prefixLen = 0;
+    let quoteChar = '"';
+    for (const n of needles) {
+      start = raw.indexOf(n);
+      if (start >= 0) {
+        prefixLen = n.length;
+        quoteChar = raw[start + prefixLen - 1];
+        break;
+      }
+    }
+    if (start >= 0) {
+      const valueStart = start + prefixLen;
+      let end = valueStart;
+      while (end < raw.length) {
+        if (raw[end] === '\\') {
+          end += 2;
+          continue;
+        }
+        if (raw[end] === quoteChar) break;
+        end++;
+      }
+      if (end > valueStart && end < raw.length) {
+        const v = raw.slice(valueStart, end).replace(/\\n/g, '\n').trim();
+        if (v.startsWith('-----BEGIN')) return v;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 @Injectable()
 export class GoogleSheetsService {
@@ -57,6 +160,18 @@ export class GoogleSheetsService {
 
       if (credentials.private_key) {
         let pk = credentials.private_key;
+        if (!pk.startsWith('-----BEGIN')) {
+          let resolved =
+            resolvePrivateKeyFromEnv(pk.trim(), serviceAccountKey) ||
+            resolvePrivateKeyFromEnv('GOOGLE_API_KEY', serviceAccountKey);
+          if (!resolved && (pk.includes('/') || pk.includes('\\') || pk.endsWith('.pem') || pk.endsWith('.key'))) {
+            const keyPath = resolve(process.cwd(), pk);
+            if (existsSync(keyPath)) {
+              resolved = readFileSync(keyPath, 'utf8').trim();
+            }
+          }
+          if (resolved) pk = resolved;
+        }
         pk = pk.replace(/\\n/g, '\n');
         pk = pk.replace(/\r\n/g, '\n');
         pk = pk.trim();
@@ -194,6 +309,133 @@ export class GoogleSheetsService {
     // Reset last processed row to process all rows
     this.lastProcessedRow = 0;
     await this.pollNewSubmissions();
+  }
+
+  /**
+   * Sync sheet data for a single user by email (admin/testing).
+   * Fetches all sheets and processes only rows where email matches (case-insensitive).
+   */
+  async syncForUserByEmail(email: string): Promise<{ processed: number }> {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      throw new Error('Invalid email');
+    }
+    if (!this.sheets) {
+      throw new Error('Google Sheets not initialized');
+    }
+
+    let processed = 0;
+
+    try {
+      // Main spreadsheet
+      if (this.spreadsheetId) {
+        const response = await this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.spreadsheetId,
+          range: this.range,
+        });
+        const rows = response.data.values;
+        if (rows && rows.length > 0) {
+          const headerRow = rows[0];
+          const columnMap = this.parseHeaderRow(headerRow);
+          const dataRows = rows.slice(1);
+          for (const row of dataRows) {
+            const rowEmail = this.getEmailFromRow(row, columnMap);
+            if (rowEmail && rowEmail.trim().toLowerCase() === normalizedEmail) {
+              await this.processStructuredReportRow(row, columnMap);
+              processed++;
+            }
+          }
+        }
+      }
+
+      // Structured report build spreadsheets
+      const buildSpreadsheets =
+        this.configService.get<Array<{ version: string; spreadsheetId: string }>>(
+          'googleSheets.structuredReportBuilds',
+        ) || [];
+      for (const build of buildSpreadsheets) {
+        if (!build.spreadsheetId) continue;
+        try {
+          const response = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: build.spreadsheetId,
+            range: 'Form Responses 1!A:Z',
+          });
+          const rows = response.data.values;
+          if (!rows || rows.length === 0) continue;
+          const headerRow = rows[0];
+          const columnMap = this.parseHeaderRow(headerRow);
+          const dataRows = rows.slice(1);
+          for (const row of dataRows) {
+            const rowEmail = this.getEmailFromRow(row, columnMap);
+            if (rowEmail && rowEmail.trim().toLowerCase() === normalizedEmail) {
+              await this.processStructuredReportBuildRow(row, columnMap, build.version);
+              processed++;
+            }
+          }
+        } catch (err) {
+          this.logger.error(
+            `Error syncing individual user from structured report build ${build.version}:`,
+            err,
+          );
+        }
+      }
+
+      // Record your session spreadsheet
+      const recordSessionSpreadsheetId = this.configService.get<string>(
+        'googleSheets.recordSessionSpreadsheet',
+      );
+      if (recordSessionSpreadsheetId) {
+        try {
+          const response = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: recordSessionSpreadsheetId,
+            range: 'Form Responses 1!A:Z',
+          });
+          const rows = response.data.values;
+          if (rows && rows.length > 0) {
+            const headerRow = rows[0];
+            const columnMap = this.parseHeaderRow(headerRow);
+            const dataRows = rows.slice(1);
+            for (const row of dataRows) {
+              const rowEmail = this.getEmailFromRow(row, columnMap);
+              if (rowEmail && rowEmail.trim().toLowerCase() === normalizedEmail) {
+                await this.processRecordSessionRow(row, columnMap);
+                processed++;
+              }
+            }
+          }
+        } catch (err) {
+          this.logger.error('Error syncing individual user from Record your session:', err);
+        }
+      }
+
+      this.logger.log(`syncForUserByEmail(${email}): processed ${processed} row(s)`);
+      return { processed };
+    } catch (error) {
+      this.logger.error('Error in syncForUserByEmail:', error);
+      throw error;
+    }
+  }
+
+  /** Extract email from a row using the same logic as process methods (for filtering). */
+  private getEmailFromRow(
+    row: any[],
+    columnMap: Record<string, number>,
+  ): string | null {
+    let email: string | null = null;
+    const emailIndex = columnMap['email'];
+    if (emailIndex !== undefined) {
+      email = row[emailIndex]?.toString().trim() || null;
+    }
+    if (!email || !email.includes('@')) {
+      for (let i = 0; i < row.length; i++) {
+        const val = row[i]?.toString().trim() || '';
+        if (val.includes('@') && val.includes('.')) {
+          email = val;
+          break;
+        }
+      }
+    }
+    return email && email.includes('@') ? email : null;
   }
 
   private parseHeaderRow(headerRow: string[]): Record<string, number> {
@@ -563,8 +805,13 @@ export class GoogleSheetsService {
             `Created new structured report submission ${newSubmission.id} for user ${discordUserId}, type: ${submissionType}, timestamp: ${timestamp}, QA status: ${qaStatus}, points: ${tcAwarded}`,
           );
 
-          // Send notification to highlights channel for new submission
-          await this.sendHighlightNotification(discordUserId, submissionType);
+          // Send notification to highlights channel for new submission (show proposed points when awarded is 0)
+          await this.sendHighlightNotification(
+            discordUserId,
+            submissionType,
+            tcAwarded,
+            points ?? undefined,
+          );
 
           // If build version is already set when creating new submission, send build version notification
           if (qaBuildVersion && qaBuildVersion.trim() !== '') {
@@ -750,7 +997,11 @@ export class GoogleSheetsService {
         );
 
         // Send notification to highlights channel for new submission
-        await this.sendHighlightNotification(discordUserId, 'balance_analysis');
+        await this.sendHighlightNotification(
+          discordUserId,
+          'balance_analysis',
+          tcAwarded,
+        );
       }
     } catch (error) {
       this.logger.error(`Error processing structured report build row for build ${buildVersion}:`, error);
@@ -932,7 +1183,11 @@ export class GoogleSheetsService {
         );
 
         // Send notification to highlights channel for new submission
-        await this.sendHighlightNotification(discordUserId, 'bug_video'); // Use bug_video for video submissions
+        await this.sendHighlightNotification(
+          discordUserId,
+          'bug_video',
+          tcAwarded,
+        );
       }
     } catch (error) {
       this.logger.error('Error processing Record your session row:', error);
@@ -941,11 +1196,15 @@ export class GoogleSheetsService {
   }
 
   /**
-   * Send notification to highlights channel when a new submission is created
+   * Send notification to highlights channel when a new submission is created.
+   * Includes +Gems and a leaderboard snippet around the user's rank.
+   * When pointsAwarded is 0 (e.g. pending QA), displays pointsProposed so the message doesn't show "+0 awarded".
    */
   private async sendHighlightNotification(
     discordUserId: string,
     submissionType: 'bug_repro' | 'bug_video' | 'balance_analysis',
+    pointsAwarded: number = 15,
+    pointsProposed?: number,
   ): Promise<void> {
     try {
       const highlightsChannelId = this.configService.get(
@@ -959,6 +1218,8 @@ export class GoogleSheetsService {
         return;
       }
 
+      const gem = this.discordService.getGemEmoji();
+
       // Map submission type to readable English text
       const submissionTypeMap: Record<
         'bug_repro' | 'bug_video' | 'balance_analysis',
@@ -970,9 +1231,21 @@ export class GoogleSheetsService {
       };
 
       const submissionTypeText = submissionTypeMap[submissionType] || submissionType;
+      const displayPoints = pointsAwarded > 0 ? pointsAwarded : (pointsProposed ?? pointsAwarded);
 
-      // Format message: Player @discord_id submitted new feedback (type). Thank you for your contribution!
-      const message = `Player <@${discordUserId}> submitted new feedback (**${submissionTypeText}**). Thank you for your contribution! 🎉`;
+      let message = `📊 **New Feedback Submitted**\n\n`;
+      message += `Founder <@${discordUserId}> shared a **${submissionTypeText}**\n`;
+      message += `+${displayPoints} ${gem} awarded\n\n`;
+
+      const snippet = await this.submissionService.getLeaderboardSnippetForUser(
+        discordUserId,
+        gem,
+      );
+      if (snippet) {
+        message += `🏆 **Feedback Leaderboard**\n${snippet}\n\n`;
+      }
+
+      message += `Thank you for helping us shape Monopoly World.`;
 
       await this.discordService.sendToChannel(highlightsChannelId, message);
       this.logger.log(

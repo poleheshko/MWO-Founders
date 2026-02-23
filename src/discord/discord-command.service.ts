@@ -57,6 +57,7 @@ export class DiscordCommandService implements OnModuleInit {
       this.adminCommands.tcAdjust,
       this.adminCommands.report,
       this.adminCommands.rankSync,
+      this.adminCommands.addPlayerId,
       this.adminCommands.sheetsSync,
     ].map((command) => command.toJSON());
 
@@ -66,12 +67,13 @@ export class DiscordCommandService implements OnModuleInit {
       console.log('Started refreshing application (/) commands.');
 
       if (guildId) {
-        // Register guild-specific commands (faster for development, works immediately)
-        // These will only appear on the specified guild
+        // Register only guild-specific commands so there is a single set (no duplicates).
+        // Clear global commands so we don't show both global + guild in the same server.
+        await rest.put(Routes.applicationCommands(clientId), { body: [] });
         await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
           body: commands,
         });
-        console.log(`Successfully registered ${commands.length} guild commands for guild ${guildId}.`);
+        console.log(`Successfully registered ${commands.length} guild-only commands for guild ${guildId}.`);
         console.log('Note: To use bot on multiple servers, either:');
         console.log('  1. Remove DISCORD_GUILD_ID to register global commands (takes up to 1 hour)');
         console.log('  2. Or register commands manually on each server');
@@ -157,10 +159,19 @@ export class DiscordCommandService implements OnModuleInit {
           if (subcommand === 'sync') {
             await this.adminCommands.handleRankSync(interaction);
           }
+        } else if (commandName === 'player-id') {
+          const subcommand = interaction.options.getSubcommand();
+          if (subcommand === 'set') {
+            await this.adminCommands.handleSetPlayerId(interaction);
+          } else if (subcommand === 'add') {
+            await this.adminCommands.handleAddPlayerId(interaction);
+          }
         } else if (commandName === 'sheets') {
           const subcommand = interaction.options.getSubcommand();
           if (subcommand === 'sync') {
             await this.adminCommands.handleSheetsSync(interaction);
+          } else if (subcommand === 'sync-individual') {
+            await this.adminCommands.handleSheetsSyncIndividual(interaction);
           }
         }
       } catch (error) {

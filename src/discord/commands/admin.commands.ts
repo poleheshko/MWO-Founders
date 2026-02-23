@@ -13,6 +13,7 @@ import { PlayerService } from '../../player/player.service';
 import { RankService } from '../../rank/rank.service';
 import { TesterArmyService } from '../../tester-army/tester-army.service';
 import { GoogleSheetsService } from '../../google-sheets/google-sheets.service';
+import { PlayerBuildIdService, BUILD_VERSIONS } from '../../player/player-build-id.service';
 
 @Injectable()
 export class AdminCommands {
@@ -25,6 +26,7 @@ export class AdminCommands {
     private readonly rankService: RankService,
     private readonly testerArmyService: TesterArmyService,
     private readonly googleSheetsService: GoogleSheetsService,
+    private readonly playerBuildIdService: PlayerBuildIdService,
   ) {}
 
   // Launch new build - replaces cycle create/publish. Previous build ends when this is called.
@@ -140,6 +142,56 @@ export class AdminCommands {
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
+  addPlayerId = new SlashCommandBuilder()
+    .setName('player-id')
+    .setDescription('Record your in-game player ID for a build (or admin: add for another user)')
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('set')
+        .setDescription('Set your in-game player ID for a build (Build 2.10–2.17)')
+        .addStringOption((option) =>
+          option
+            .setName('build')
+            .setDescription('Build version')
+            .setRequired(true)
+            .addChoices(
+              ...BUILD_VERSIONS.map((v) => ({ name: `Build ${v}`, value: v })),
+            ),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('player_id')
+            .setDescription('Your in-game player ID for this build')
+            .setRequired(true),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('add')
+        .setDescription('(Admin) Add or update player ID for another user and build')
+        .addUserOption((option) =>
+          option
+            .setName('user')
+            .setDescription('Discord user to assign player ID to')
+            .setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('build')
+            .setDescription('Build version (2.10–2.17)')
+            .setRequired(true)
+            .addChoices(
+              ...BUILD_VERSIONS.map((v) => ({ name: `Build ${v}`, value: v })),
+            ),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('player_id')
+            .setDescription('In-game player ID for this build')
+            .setRequired(true),
+        ),
+    );
+
   sheetsSync = new SlashCommandBuilder()
     .setName('sheets')
     .setDescription('Synchronize Google Sheets with database')
@@ -147,6 +199,17 @@ export class AdminCommands {
       subcommand
         .setName('sync')
         .setDescription('Manually trigger Google Sheets synchronization'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('sync-individual')
+        .setDescription('Sync sheet data for one user only (by Discord user; uses their registered email). For testing.')
+        .addUserOption((option) =>
+          option
+            .setName('user')
+            .setDescription('Discord user to sync (must have set email via /founders add-email)')
+            .setRequired(true),
+        ),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
@@ -326,10 +389,12 @@ export class AdminCommands {
           continue;
         }
 
-        const gem = this.discordService.getGemEmoji();
-        const message = `🎉 Player <@${discordUserId}> received **${points}** ${gem} for **${reason}**. Thank you for your contribution!`;
-
         try {
+          const message = await this.discordService.buildContributionRewardedMessage(
+            discordUserId,
+            points,
+            reason,
+          );
           await this.discordService.sendToChannel(highlightsChannelId, message);
           sentMessages.push(discordUserId);
         } catch (error) {
@@ -424,6 +489,21 @@ export class AdminCommands {
       reason,
       interaction.user.id,
     );
+
+    // Post to highlights in same format as feedback / award delivered
+    const highlightsChannelId = this.configService.get('discord.channels.highlights');
+    if (highlightsChannelId && delta !== 0) {
+      try {
+        const message = await this.discordService.buildContributionRewardedMessage(
+          user.id,
+          delta,
+          reason,
+        );
+        await this.discordService.sendToChannel(highlightsChannelId, message);
+      } catch (error) {
+        console.error('Failed to send tc adjust highlight message:', error);
+      }
+    }
 
     await interaction.editReply({
       content: `✅ Gems adjusted: ${delta > 0 ? '+' : ''}${delta} ${this.discordService.getGemEmoji()} for <@${user.id}>\nReason: ${reason}`,
@@ -535,6 +615,67 @@ export class AdminCommands {
     }
   }
 
+  /** User command: set your own player ID for a build. */
+  async handleSetPlayerId(interaction: ChatInputCommandInteraction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    const userId = interaction.user.id;
+    const buildVersion = interaction.options.getString('build', true);
+    const playerId = interaction.options.getString('player_id', true);
+
+    await this.playerService.upsertUser(
+      userId,
+      interaction.user.username,
+      interaction.user.displayName || undefined,
+    );
+
+    await this.playerBuildIdService.setPlayerIdForBuild(
+      userId,
+      buildVersion,
+      playerId,
+    );
+
+    await interaction.editReply({
+      content: `✅ **Build ${buildVersion}** — your in-game player ID is now **${playerId}**`,
+    });
+  }
+
+  /** Admin only: set player ID for another user. */
+  async handleAddPlayerId(interaction: ChatInputCommandInteraction) {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        content: '❌ You must be an administrator to use this subcommand.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const user = interaction.options.getUser('user', true);
+    const buildVersion = interaction.options.getString('build', true);
+    const playerId = interaction.options.getString('player_id', true);
+
+    await this.playerService.upsertUser(
+      user.id,
+      user.username,
+      user.displayName || undefined,
+    );
+
+    await this.playerBuildIdService.setPlayerIdForBuild(
+      user.id,
+      buildVersion,
+      playerId,
+    );
+
+    const player = await this.playerService.getPlayer(user.id);
+    const emailInfo = player?.email ? ` (${player.email})` : '';
+
+    await interaction.editReply({
+      content: `✅ **Build ${buildVersion}** — <@${user.id}>${emailInfo}\nIn-game player ID: **${playerId}**`,
+    });
+  }
+
   async handleSheetsSync(interaction: ChatInputCommandInteraction) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({
@@ -578,6 +719,68 @@ export class AdminCommands {
         .setColor(0xed4245)
         .setDescription(
           `An error occurred while synchronizing Google Sheets:\n\n` +
+          `\`\`\`${error instanceof Error ? error.message : 'Unknown error'}\`\`\``,
+        )
+        .setTimestamp();
+
+      await interaction.editReply({
+        content: '',
+        embeds: [errorEmbed],
+      });
+    }
+  }
+
+  async handleSheetsSyncIndividual(interaction: ChatInputCommandInteraction) {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        content: '❌ You must be an administrator to use this command.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const user = interaction.options.getUser('user', true);
+    const player = await this.playerService.getPlayer(user.id);
+
+    if (!player?.email || !player.email.includes('@')) {
+      await interaction.editReply({
+        content:
+          `❌ <@${user.id}> has not set their email.\n` +
+          'They need to use `/founders add-email` with the same email they use in the submission forms. Then you can sync sheet data for them.',
+      });
+      return;
+    }
+
+    try {
+      await interaction.editReply({
+        content: `🔄 Syncing sheet data for <@${user.id}> (${player.email})...`,
+      });
+
+      const { processed } = await this.googleSheetsService.syncForUserByEmail(
+        player.email,
+      );
+
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Individual Sync Complete')
+        .setColor(0x57f287)
+        .setDescription(
+          `Synced **${processed}** row(s) from Google Sheets for <@${user.id}> (${player.email}).`,
+        )
+        .setTimestamp();
+
+      await interaction.editReply({
+        content: '',
+        embeds: [embed],
+      });
+    } catch (error) {
+      console.error('Error syncing sheet for individual user:', error);
+
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌ Individual Sync Failed')
+        .setColor(0xed4245)
+        .setDescription(
           `\`\`\`${error instanceof Error ? error.message : 'Unknown error'}\`\`\``,
         )
         .setTimestamp();
