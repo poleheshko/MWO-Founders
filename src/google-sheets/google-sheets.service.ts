@@ -1207,6 +1207,15 @@ export class GoogleSheetsService {
     pointsProposed?: number,
   ): Promise<void> {
     try {
+      // Don't send a highlight when there are no points to show (avoids "+0 awarded" for pending Balance Analysis build rows, etc.)
+      const hasPointsToShow = pointsAwarded > 0 || (pointsProposed != null && pointsProposed > 0);
+      if (!hasPointsToShow) {
+        this.logger.debug(
+          `Skipping highlight notification for user ${discordUserId}, type: ${submissionType} (no points awarded or proposed)`,
+        );
+        return;
+      }
+
       const highlightsChannelId = this.configService.get(
         'discord.channels.highlights',
       );
