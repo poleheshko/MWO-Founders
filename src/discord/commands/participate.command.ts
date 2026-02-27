@@ -371,8 +371,8 @@ export class ParticipateCommand {
       if (row2.components.length > 0) components.push(row2);
 
       const embed = new EmbedBuilder()
-        .setTitle('📊 Structured Report - Select Build')
-        .setDescription('Choose the build version for your structured report submission:')
+        .setTitle('📊 Record your First Session and Feedback - Select Build')
+        .setDescription('Choose the build version for your session & feedback submission:')
         .setColor(0x5865f2)
         .setFooter({ text: 'Select a build version to open the submission form' });
 
