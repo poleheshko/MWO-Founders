@@ -97,6 +97,8 @@ export class DiscordCommandService implements OnModuleInit {
         try {
           if (interaction.customId === 'structured_report_select_build') {
             await this.participateCommand.handleStructuredReportBuildSelection(interaction);
+          } else if (interaction.customId === 'all_in_one_select_build') {
+            await this.participateCommand.handleAllInOneBuildSelection(interaction);
           }
         } catch (error) {
           console.error('Error handling button interaction:', error);
