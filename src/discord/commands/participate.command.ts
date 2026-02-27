@@ -164,6 +164,16 @@ export class ParticipateCommand {
         .setStyle(ButtonStyle.Primary)
         .setCustomId('structured_report_select_build');
       buttons.push(structuredBtn);
+
+      // 6b. All-in-One Feedback (one form per build, max 100 + 400 gems)
+      const allInOneBuilds = this.configService.get<Array<{ version: string; formUrl: string }>>('forms.allInOneBuilds') || [];
+      if (allInOneBuilds.length > 0) {
+        const allInOneBtn = new ButtonBuilder()
+          .setLabel('All-in-One Feedback (Builds)')
+          .setStyle(ButtonStyle.Secondary)
+          .setCustomId('all_in_one_select_build');
+        buttons.push(allInOneBtn);
+      }
       
       // 7. Record your session button
       const recordSessionUrl = this.configService.get<string>('forms.recordSession') || process.env.FORM_RECORD_SESSION;
@@ -323,6 +333,76 @@ export class ParticipateCommand {
         } catch (followUpError) {
           console.error('Even followUp failed:', followUpError);
         }
+      }
+    }
+  }
+
+  async handleAllInOneBuildSelection(interaction: ButtonInteraction) {
+    try {
+      await interaction.deferReply({ ephemeral: true });
+
+      const player = await this.playerService.getPlayer(interaction.user.id);
+      if (!player?.email || !player.email.includes('@')) {
+        await interaction.editReply({
+          content:
+            '⚠️ **Email required**\n\nUse `/founders add-email` to set your email first (same as in the submission forms).',
+        });
+        return;
+      }
+
+      const allInOneBuilds = this.configService.get<Array<{ version: string; formUrl: string }>>('forms.allInOneBuilds') || [];
+      if (allInOneBuilds.length === 0) {
+        await interaction.editReply({
+          content: '❌ All-in-One forms are not configured. Please contact an administrator.',
+        });
+        return;
+      }
+
+      const buildButtons: ButtonBuilder[] = allInOneBuilds
+        .filter((b) => b.formUrl && b.formUrl.startsWith('http'))
+        .map((build) =>
+          new ButtonBuilder()
+            .setLabel(`Build ${build.version} (All-in-One)`)
+            .setStyle(ButtonStyle.Link)
+            .setURL(build.formUrl),
+        );
+
+      if (buildButtons.length === 0) {
+        await interaction.editReply({
+          content: '❌ No valid All-in-One form links configured.',
+        });
+        return;
+      }
+
+      const row1 = new ActionRowBuilder<ButtonBuilder>();
+      const row2 = new ActionRowBuilder<ButtonBuilder>();
+      buildButtons.slice(0, 5).forEach((btn) => row1.addComponents(btn));
+      buildButtons.slice(5, 10).forEach((btn) => row2.addComponents(btn));
+
+      const components = [];
+      if (row1.components.length > 0) components.push(row1);
+      if (row2.components.length > 0) components.push(row2);
+
+      const embed = new EmbedBuilder()
+        .setTitle('📋 All-in-One Feedback – Select Build')
+        .setDescription(
+          'One form per build. Max **100** gems from feedback/screenshots/videos/structured answers + **400** for first session record.'
+        )
+        .setColor(0x5865f2)
+        .setFooter({ text: 'Select a build to open the form' });
+
+      await interaction.editReply({
+        embeds: [embed],
+        components,
+      });
+    } catch (error) {
+      console.error('Error in handleAllInOneBuildSelection:', error);
+      try {
+        await interaction.editReply({
+          content: '❌ An error occurred. Please try again later.',
+        });
+      } catch {
+        // ignore
       }
     }
   }
