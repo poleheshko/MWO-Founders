@@ -72,33 +72,203 @@ export class ParticipateCommand {
         return;
       }
 
-      const gem = this.discordService.getGemEmoji();
-
-      const currentAllInOne = this.getCurrentAllInOneAllBuildLink();
-
-      let description =
-        `Current contribution types and rewards in ${gem} gems:\n` +
-        `• 🎥 Bug with video – 40 ${gem}\n` +
-        `• 📸 Bug with screenshot – 5 ${gem}\n` +
-        `• 🧩 Issue feedback – varies\n` +
-        `• 📊 Structured report – up to 250 ${gem} (based on QA and points assigned)\n` +
-        `• 🕹️ First Session Record – 400 ${gem}\n\n`;
-
-      if (currentAllInOne) {
-        description += `**Current All‑in‑One form for build ${currentAllInOne.version}:**\n${currentAllInOne.formUrl}`;
-      } else {
-        description +=
-          '⚠️ All‑in‑One form for the current build is not configured yet. Please contact an administrator.';
+      // If process.env has no FORM_* (e.g. under nest start --watch), load from .env file
+      const formEnvKeys = Object.keys(process.env).filter((k) => k.startsWith('FORM_'));
+      if (formEnvKeys.length === 0) {
+        const fromFile = this.loadFormUrlsFromEnvFile();
+        if (fromFile) Object.assign(process.env, fromFile);
       }
+
+      let screenshotUrl = this.configService.get<string>('forms.screenshot') || process.env.FORM_SCREENSHOT;
+      let bugReproUrl = this.configService.get<string>('forms.bugRepro') || process.env.FORM_BUG_REPRO;
+      let bugVideoUrl = this.configService.get<string>('forms.bugVideo') || process.env.FORM_BUG_VIDEO;
+      let balanceUrl = this.configService.get<string>('forms.balanceAnalysis') || process.env.FORM_BALANCE_ANALYSIS;
+      let retestUrl = this.configService.get<string>('forms.retest') || process.env.FORM_RETEST;
+      
+      // Get current structured report link (changes every 8 weeks)
+      let structuredReportLink: string | undefined;
+      try {
+        structuredReportLink = await this.getStructuredReportLink();
+        console.log('Structured report link:', structuredReportLink);
+      } catch (linkError) {
+        console.error('Error getting structured report link:', linkError);
+        structuredReportLink = process.env.FORM_STRUCTURED_REPORT;
+      }
+
+      // Helper function to create button only if URL is valid
+      const createButtonIfValid = (label: string, url: string | undefined): ButtonBuilder | null => {
+        console.log(`\n[Button Check] "${label}":`, {
+          url: url,
+          type: typeof url,
+          isUndefined: url === undefined,
+          isNull: url === null,
+          isEmpty: url === '',
+          trimmed: url ? url.trim() : 'N/A',
+        });
+        
+        if (!url) {
+          console.log(`❌ Skipping button "${label}" - URL is undefined/null`);
+          return null;
+        }
+        
+        if (typeof url !== 'string') {
+          console.log(`❌ Skipping button "${label}" - URL is not a string (type: ${typeof url})`);
+          return null;
+        }
+        
+        const trimmedUrl = url.trim();
+        
+        if (trimmedUrl === '' || trimmedUrl === '#') {
+          console.log(`❌ Skipping button "${label}" - URL is empty or placeholder`);
+          return null;
+        }
+        
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+          console.log(`❌ Skipping button "${label}" - URL doesn't start with http/https:`, trimmedUrl);
+          return null;
+        }
+        
+        console.log(`✅ Creating button "${label}" with URL:`, trimmedUrl);
+        return new ButtonBuilder()
+          .setLabel(label)
+          .setStyle(ButtonStyle.Link)
+          .setURL(trimmedUrl);
+      };
+
+      // Create buttons (only if URLs are valid) - in the requested order
+      const buttons: ButtonBuilder[] = [];
+      
+      // 1. Balance Analysis (30 gems)
+      const balanceBtn = createButtonIfValid('Balance Analysis (30 gems)', balanceUrl);
+      if (balanceBtn) buttons.push(balanceBtn);
+      
+      // 2. Bug with Screenshot (5 gems)
+      const screenshotBtn = createButtonIfValid('Bug with Screenshot (5 gems)', screenshotUrl);
+      if (screenshotBtn) buttons.push(screenshotBtn);
+      
+      // 3. Bug with Reproduction Steps (25 gems)
+      const bugReproBtn = createButtonIfValid('Bug with Reproduction Steps (25 gems)', bugReproUrl);
+      if (bugReproBtn) buttons.push(bugReproBtn);
+      
+      // 4. Bug with Video (40 gems)
+      const bugVideoBtn = createButtonIfValid('Bug with Video (40 gems)', bugVideoUrl);
+      if (bugVideoBtn) buttons.push(bugVideoBtn);
+      
+      // 5. Re-test Confirmation (15 gems)
+      const retestBtn = createButtonIfValid('Re-test Confirmation (15 gems)', retestUrl);
+      if (retestBtn) buttons.push(retestBtn);
+      
+      // 6. Structured Report button - interactive (not link) to show build selection
+      const structuredBtn = new ButtonBuilder()
+        .setLabel('Structured Report')
+        .setStyle(ButtonStyle.Primary)
+        .setCustomId('structured_report_select_build');
+      buttons.push(structuredBtn);
+      
+      // 7. Record your session button
+      const recordSessionUrl = this.configService.get<string>('forms.recordSession') || process.env.FORM_RECORD_SESSION;
+      const recordSessionBtn = createButtonIfValid('Record your session', recordSessionUrl);
+      if (recordSessionBtn) buttons.push(recordSessionBtn);
+
+      console.log(`\n=== Button Creation Summary ===`);
+      console.log(`Total buttons created: ${buttons.length}`);
+      console.log(`Button details:`, buttons.map(btn => {
+        const json = btn.toJSON() as any;
+        return { label: json.label, url: json.url };
+      }));
+
+      // Split buttons into rows (max 5 buttons per row in Discord, max 5 rows total)
+      const row1 = new ActionRowBuilder<ButtonBuilder>();
+      const row2 = new ActionRowBuilder<ButtonBuilder>();
+      
+      // First row: up to 5 buttons
+      buttons.slice(0, 5).forEach(btn => row1.addComponents(btn));
+      // Second row: remaining buttons (up to 5)
+      buttons.slice(5, 10).forEach(btn => row2.addComponents(btn));
+
+      const components = [];
+      if (row1.components.length > 0) {
+        components.push(row1);
+        console.log(`Row 1: ${row1.components.length} buttons`);
+      }
+      if (row2.components.length > 0) {
+        components.push(row2);
+        console.log(`Row 2: ${row2.components.length} buttons`);
+      }
+
+      console.log(`\n=== Final Component Summary ===`);
+      console.log(`Total component rows: ${components.length}`);
+      console.log(`Total buttons: ${buttons.length}`);
+      console.log(`Will send components: ${components.length > 0 ? 'YES' : 'NO'}`);
+
+      const gem = this.discordService.getGemEmoji();
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 Participate in Tester Army')
-        .setDescription(description)
-        .setColor(0x5865f2);
+        .setDescription(`Click the buttons below to submit your contributions. Each submission type awards different ${gem} gems.`)
+        .setColor(0x5865f2)
+        .addFields(
+          {
+            name: '📸 Bug with screenshot',
+            value: `5 ${gem}`,
+            inline: true,
+          },
+          {
+            name: '🐛 Bug with Reproduction Steps',
+            value: `25 ${gem}`,
+            inline: true,
+          },
+          {
+            name: '🎥 Bug with Video',
+            value: `40 ${gem}`,
+            inline: true,
+          },
+          {
+            name: '⚖️ Balance Analysis',
+            value: `30 ${gem}`,
+            inline: true,
+          },
+          {
+            name: '✅ Re-test Confirmation',
+            value: `15 ${gem}`,
+            inline: true,
+          },
+          {
+            name: '🎬 Record your session',
+            value: 'Varies by review',
+            inline: true,
+          },
+          {
+            name: '📊 Structured Report',
+            value: 'Varies by cycle',
+            inline: true,
+          },
+        )
+        .setFooter({ text: 'Links are updated automatically. Structured Report link changes every 8 weeks.' });
 
       const replyOptions: any = {
         embeds: [embed],
       };
+
+      if (components.length > 0) {
+        replyOptions.components = components;
+        console.log('✅ Adding components to reply');
+        console.log('Components structure:', JSON.stringify(components.map(row => ({
+          components: row.components.map(btn => {
+            const json = btn.toJSON() as any;
+            return { label: json.label, url: json.url };
+          }),
+        })), null, 2));
+      } else {
+        console.warn('⚠️ WARNING: No components to add!');
+        console.warn(`Buttons array length: ${buttons.length}`);
+        console.warn('This means all URLs were invalid or missing. Check the logs above for details.');
+        // Add a message if no buttons are available
+        const currentDescription = embed.data.description || 'Click the buttons below to submit your contributions. Each submission type awards different gems.';
+        embed.setDescription(
+          currentDescription + '\n\n⚠️ **Note:** Form links are not configured. Please contact an administrator.'
+        );
+      }
 
       console.log('\n=== Sending Reply ===');
       console.log('Reply options:', {
@@ -153,76 +323,6 @@ export class ParticipateCommand {
         } catch (followUpError) {
           console.error('Even followUp failed:', followUpError);
         }
-      }
-    }
-  }
-
-  async handleAllInOneBuildSelection(interaction: ButtonInteraction) {
-    try {
-      await interaction.deferReply({ ephemeral: true });
-
-      const player = await this.playerService.getPlayer(interaction.user.id);
-      if (!player?.email || !player.email.includes('@')) {
-        await interaction.editReply({
-          content:
-            '⚠️ **Email required**\n\nUse `/founders add-email` to set your email first (same as in the submission forms).',
-        });
-        return;
-      }
-
-      const allInOneBuilds = this.configService.get<Array<{ version: string; formUrl: string }>>('forms.allInOneBuilds') || [];
-      if (allInOneBuilds.length === 0) {
-        await interaction.editReply({
-          content: '❌ All-in-One forms are not configured. Please contact an administrator.',
-        });
-        return;
-      }
-
-      const buildButtons: ButtonBuilder[] = allInOneBuilds
-        .filter((b) => b.formUrl && b.formUrl.startsWith('http'))
-        .map((build) =>
-          new ButtonBuilder()
-            .setLabel(`Build ${build.version} (All-in-One)`)
-            .setStyle(ButtonStyle.Link)
-            .setURL(build.formUrl),
-        );
-
-      if (buildButtons.length === 0) {
-        await interaction.editReply({
-          content: '❌ No valid All-in-One form links configured.',
-        });
-        return;
-      }
-
-      const row1 = new ActionRowBuilder<ButtonBuilder>();
-      const row2 = new ActionRowBuilder<ButtonBuilder>();
-      buildButtons.slice(0, 5).forEach((btn) => row1.addComponents(btn));
-      buildButtons.slice(5, 10).forEach((btn) => row2.addComponents(btn));
-
-      const components = [];
-      if (row1.components.length > 0) components.push(row1);
-      if (row2.components.length > 0) components.push(row2);
-
-      const embed = new EmbedBuilder()
-        .setTitle('📋 All-in-One Feedback – Select Build')
-        .setDescription(
-          'One form per build. Max **100** gems from feedback/screenshots/videos/structured answers + **400** for first session record.'
-        )
-        .setColor(0x5865f2)
-        .setFooter({ text: 'Select a build to open the form' });
-
-      await interaction.editReply({
-        embeds: [embed],
-        components,
-      });
-    } catch (error) {
-      console.error('Error in handleAllInOneBuildSelection:', error);
-      try {
-        await interaction.editReply({
-          content: '❌ An error occurred. Please try again later.',
-        });
-      } catch {
-        // ignore
       }
     }
   }
@@ -303,41 +403,6 @@ export class ParticipateCommand {
       build.formUrl.startsWith('http') && 
       !build.formUrl.includes('PLACEHOLDER')
     );
-  }
-
-  private getCurrentAllInOneAllBuildLink(): { version: string; formUrl: string } | null {
-    const allInOneBuilds =
-      this.configService.get<Array<{ version: string; formUrl: string }>>('forms.allInOneBuilds') || [];
-
-    if (!allInOneBuilds.length) return null;
-
-    const now = new Date();
-
-    const schedule: Array<{ version: string; from: Date }> = [
-      // Before 6 March 2026 11:00 UTC we show 2.11
-      { version: '2.12', from: new Date(Date.UTC(2026, 2, 6, 11, 0, 0)) },
-      { version: '2.13', from: new Date(Date.UTC(2026, 2, 13, 11, 0, 0)) },
-      { version: '2.14', from: new Date(Date.UTC(2026, 2, 20, 11, 0, 0)) },
-      { version: '2.15', from: new Date(Date.UTC(2026, 2, 27, 11, 0, 0)) },
-      { version: '2.16', from: new Date(Date.UTC(2026, 3, 3, 11, 0, 0)) },
-      { version: '2.17', from: new Date(Date.UTC(2026, 3, 10, 11, 0, 0)) },
-    ];
-
-    let currentVersion = '2.11';
-    for (const step of schedule) {
-      if (now >= step.from) {
-        currentVersion = step.version;
-      } else {
-        break;
-      }
-    }
-
-    const match = allInOneBuilds.find((b) => b.version === currentVersion);
-    if (!match) {
-      return null;
-    }
-
-    return match;
   }
 
   private async getStructuredReportLink(): Promise<string | undefined> {

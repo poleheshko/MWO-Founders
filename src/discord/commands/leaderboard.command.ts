@@ -89,7 +89,7 @@ export class LeaderboardCommand {
           .join('\n'),
       )
       .setFooter({
-        text: '📌 Showing TOP 15. Leaderboard includes all points (Confirmed + Pending). Points can be decreased after admin review.',
+        text: '📌 Showing TOP 15. Leaderboard includes all points (Confirmed + Pending + Declined). Points can be decreased after admin review.',
       })
       .setTimestamp();
 

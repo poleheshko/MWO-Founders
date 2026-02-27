@@ -10,7 +10,6 @@ import { PlayerService } from '../../player/player.service';
 import { RankService } from '../../rank/rank.service';
 import { DiscordService } from '../discord.service';
 import { ConfigService } from '@nestjs/config';
-import { GoogleSheetsService } from '../../google-sheets/google-sheets.service';
 
 @Injectable()
 export class ProfileCommand {
@@ -23,7 +22,6 @@ export class ProfileCommand {
     private readonly rankService: RankService,
     private readonly discordService: DiscordService,
     private readonly configService: ConfigService,
-    private readonly googleSheetsService: GoogleSheetsService,
   ) {
     this.programRoles = this.configService.get('program.roles') || [];
   }
@@ -174,20 +172,6 @@ export class ProfileCommand {
         // Continue even if rank evaluation fails
       }
 
-      // Sync from all configured sheets (2.11, 2.12, …) so profile shows latest All-in-One data
-      try {
-        await this.googleSheetsService.syncForUserByEmail(player.email);
-        await this.submissionService.recalculateTotals(discordUserId);
-        tester = await this.testerArmyService.getTester(discordUserId);
-        if (tester) {
-          const guild = await this.discordService.getGuild();
-          await this.rankService.syncDiscordRoles(discordUserId, guild);
-        }
-      } catch (syncErr) {
-        console.error('Error syncing sheets for profile:', syncErr);
-        // Continue showing profile with existing DB data
-      }
-
       // Get submissions by status
       let pendingSubmissions: any[] = [];
       let declinedSubmissions: any[] = [];
@@ -195,20 +179,19 @@ export class ProfileCommand {
       let allDeclinedSubmissions: any[] = [];
 
       try {
-        // Max 10 items per section (order: newest first / descending)
         pendingSubmissions = await this.submissionService.getSubmissionsByUser(
           discordUserId,
-          10,
+          5,
           'pending',
         );
         declinedSubmissions = await this.submissionService.getSubmissionsByUser(
           discordUserId,
-          10,
+          5,
           'declined',
         );
         confirmedSubmissions = await this.submissionService.getSubmissionsByUser(
           discordUserId,
-          10,
+          15,
           'approved',
         );
         // Get all declined submissions to calculate total declined gems
@@ -246,41 +229,15 @@ export class ProfileCommand {
 
       // Helper function to get display name for submission
       const getSubmissionDisplayName = (s: any): string => {
-        // All-in-one form (one long form per build)
-        if (s.payloadJson?.allInOneForm && s.payloadJson?.buildVersion) {
-          return `All-in-One (Build ${s.payloadJson.buildVersion})`;
-        }
-        // Structured report build submission
+        // Check if this is a structured report build submission
         if (s.payloadJson?.structuredReportBuild && s.payloadJson?.buildVersion) {
           return `Structured Report ${s.payloadJson.buildVersion}`;
         }
-        // Record your session submission
+        // Check if this is a Record your session submission
         if (s.payloadJson?.recordSession) {
           return 'Record your session';
         }
         return submissionTypeNames[s.type] || s.type;
-      };
-
-      // For All-in-One: breakdown text (e.g. " _(400 First Session + 100 form)_")
-      const getAllInOneBreakdown = (s: any): string => {
-        if (!s.payloadJson?.allInOneForm) return '';
-        const fsr = s.payloadJson.fsrGems ?? 0;
-        const form = s.payloadJson.formGems ?? 0;
-        if (fsr === 0 && form === 0) return '';
-        const parts: string[] = [];
-        if (fsr > 0) parts.push(`${fsr} First Session`);
-        if (form > 0) parts.push(`${form} form`);
-        return parts.length ? ` _(${parts.join(' + ')})_` : '';
-      };
-
-      // All-in-One: zwraca punkty per kolumna (tylko niezerowe). Nowy format: ifPerColumn/sPerColumn/vPerColumn/srPerColumn; stary: ifGems/sGems/vGems/srGems.
-      const getAllInOnePerColumn = (p: any): { fsr: number; feedback: number[]; images: number[]; video: number[]; structured: number[] } => {
-        const fsr = p?.fsrGems ?? 0;
-        const feedback = Array.isArray(p?.ifPerColumn) ? (p.ifPerColumn as number[]).filter((n) => n > 0) : (p?.ifGems > 0 ? [p.ifGems] : []);
-        const images = Array.isArray(p?.sPerColumn) ? (p.sPerColumn as number[]).filter((n) => n > 0) : (p?.sGems > 0 ? [p.sGems] : []);
-        const video = Array.isArray(p?.vPerColumn) ? (p.vPerColumn as number[]).filter((n) => n > 0) : (p?.vGems > 0 ? [p.vGems] : []);
-        const structured = Array.isArray(p?.srPerColumn) ? (p.srPerColumn as number[]).filter((n) => n > 0) : (p?.srGems > 0 ? [p.srGems] : []);
-        return { fsr, feedback, images, video, structured };
       };
 
       const formatDate = (d: Date) =>
@@ -288,15 +245,13 @@ export class ProfileCommand {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
         });
 
-      // Calculate declined gems:
-      // - all submissions (including All-in-One): use tcProposed (already includes per-form caps)
-      const declinedTc = allDeclinedSubmissions.reduce((sum, s) => {
-        return sum + (s.tcProposed || 0);
-      }, 0);
+      // Calculate declined gems from all declined submissions
+      const declinedTc = allDeclinedSubmissions.reduce(
+        (sum, s) => sum + (s.tcProposed || 0),
+        0,
+      );
 
       const gem = this.discordService.getGemEmoji();
 
@@ -331,171 +286,48 @@ export class ProfileCommand {
           },
         );
 
-      // Recent Submissions (pending) – All-in-One rozbite na First Session / Feedback / Images / Videos / Structured
-      const pendingLines: string[] = [];
-      for (const s of pendingSubmissions) {
-        const name = getSubmissionDisplayName(s);
-        const dateStr = formatDate(s.createdAt);
-
-        if (s.payloadJson?.allInOneForm) {
-          const { fsr, feedback, images, video, structured } = getAllInOnePerColumn(s.payloadJson);
-          const hasAny = fsr > 0 || feedback.length > 0 || images.length > 0 || video.length > 0 || structured.length > 0;
-          if (!hasAny) {
-            pendingLines.push(
-              `• **${name}** (${s.status}) - ${s.tcProposed} ${gem} — ${dateStr}`,
-            );
-          } else {
-            if (fsr > 0) {
-              pendingLines.push(
-                `• **${name} - First Session** (pending) - ${fsr} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of feedback) {
-              pendingLines.push(
-                `• **${name} - Feedback** (pending) - ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of images) {
-              pendingLines.push(
-                `• **${name} - Images** (pending) - ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of video) {
-              pendingLines.push(
-                `• **${name} - Videos** (pending) - ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of structured) {
-              pendingLines.push(
-                `• **${name} - Structured** (pending) - ${val} ${gem} — ${dateStr}`,
-              );
-            }
-          }
-        } else {
-          pendingLines.push(
-            `• **${name}** (${s.status}) - ${s.tcProposed} ${gem} — ${dateStr}`,
-          );
-        }
-      }
+      // Recent Submissions (pending)
       const pendingList =
-        pendingLines.length > 0
-          ? pendingLines.slice(0, 10).join('\n')
+        pendingSubmissions.length > 0
+          ? pendingSubmissions
+              .map(
+                (s) =>
+                  `• **${getSubmissionDisplayName(s)}** (${s.status}) - ${s.tcProposed} ${gem} — ${formatDate(s.createdAt)}`,
+              )
+              .join('\n')
           : '_No pending submissions_';
       embed.addFields({
-        name: '📝 Recent Submissions _(last 10)_',
+        name: '📝 Recent Submissions',
         value: pendingList.substring(0, 1024),
       });
 
-      // Confirmed Submissions (includes bug_repro, delivered features, All-in-One, etc.)
-      const confirmedLines: string[] = [];
-
-      for (const s of confirmedSubmissions) {
-        const name = getSubmissionDisplayName(s);
-        const dateStr = formatDate(s.createdAt);
-
-        if (s.payloadJson?.allInOneForm) {
-          const { fsr, feedback, images, video, structured } = getAllInOnePerColumn(s.payloadJson);
-          const hasAny = fsr > 0 || feedback.length > 0 || images.length > 0 || video.length > 0 || structured.length > 0;
-          if (!hasAny) {
-            confirmedLines.push(
-              `• **${name}** — +${s.tcAwarded} ${gem} — ${dateStr}`,
-            );
-          } else {
-            if (fsr > 0) {
-              confirmedLines.push(
-                `• **${name} - First Session** — +${fsr} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of feedback) {
-              confirmedLines.push(
-                `• **${name} - Feedback** — +${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of images) {
-              confirmedLines.push(
-                `• **${name} - Images** — +${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of video) {
-              confirmedLines.push(
-                `• **${name} - Videos** — +${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of structured) {
-              confirmedLines.push(
-                `• **${name} - Structured** — +${val} ${gem} — ${dateStr}`,
-              );
-            }
-          }
-        } else {
-          confirmedLines.push(
-            `• **${name}** — +${s.tcAwarded} ${gem} — ${dateStr}`,
-          );
-        }
-      }
-
+      // Confirmed Submissions (includes bug_repro, award delivered: structured_report_bonus, video_session, playtime_minimum)
       const confirmedList =
-        confirmedLines.length > 0
-          ? confirmedLines.slice(0, 10).join('\n')
+        confirmedSubmissions.length > 0
+          ? confirmedSubmissions
+              .map(
+                (s) =>
+                  `• **${getSubmissionDisplayName(s)}** — +${s.tcAwarded} ${gem} — ${formatDate(s.createdAt)}`,
+              )
+              .join('\n')
           : '_No confirmed submissions yet_';
       embed.addFields({
-        name: '✅ Confirmed Submissions _(last 10)_',
+        name: '✅ Confirmed Submissions',
         value: confirmedList.substring(0, 1024),
       });
 
-      // Declined Submissions (All-in-One także rozbite na części)
-      const declinedLines: string[] = [];
-      for (const s of declinedSubmissions) {
-        const name = getSubmissionDisplayName(s);
-        const dateStr = formatDate(s.createdAt);
-
-        if (s.payloadJson?.allInOneForm) {
-          const { fsr, feedback, images, video, structured } = getAllInOnePerColumn(s.payloadJson);
-          const hasAny = fsr > 0 || feedback.length > 0 || images.length > 0 || video.length > 0 || structured.length > 0;
-          if (!hasAny) {
-            declinedLines.push(
-              `• **${name}** — ${s.tcProposed} ${gem} — ${dateStr}`,
-            );
-          } else {
-            if (fsr > 0) {
-              declinedLines.push(
-                `• **${name} - First Session** — ${fsr} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of feedback) {
-              declinedLines.push(
-                `• **${name} - Feedback** — ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of images) {
-              declinedLines.push(
-                `• **${name} - Images** — ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of video) {
-              declinedLines.push(
-                `• **${name} - Videos** — ${val} ${gem} — ${dateStr}`,
-              );
-            }
-            for (const val of structured) {
-              declinedLines.push(
-                `• **${name} - Structured** — ${val} ${gem} — ${dateStr}`,
-              );
-            }
-          }
-        } else {
-          declinedLines.push(
-            `• **${name}** — ${s.tcProposed} ${gem} — ${dateStr}`,
-          );
-        }
-      }
-
+      // Declined Submissions
       const declinedList =
-        declinedLines.length > 0
-          ? declinedLines.slice(0, 10).join('\n')
+        declinedSubmissions.length > 0
+          ? declinedSubmissions
+              .map(
+                (s) =>
+                  `• **${getSubmissionDisplayName(s)}** — ${s.tcProposed} ${gem} — ${formatDate(s.createdAt)}`,
+              )
+              .join('\n')
           : '_No declined submissions_';
       embed.addFields({
-        name: '❌ Declined Submissions _(last 10)_',
+        name: '❌ Declined Submissions',
         value: declinedList.substring(0, 1024),
       });
 

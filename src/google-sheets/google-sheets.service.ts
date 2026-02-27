@@ -118,11 +118,6 @@ export class GoogleSheetsService {
   private spreadsheetId: string;
   private range: string;
   private lastProcessedRow: number = 0;
-  /**
-   * Legacy per-build spreadsheets (structuredReportBuilds + main structured report sheet)
-   * are now disabled to reduce load; only all-in-one + record-session are polled.
-   */
-  private readonly enableLegacySpreadsheets = false;
 
   constructor(
     private readonly configService: ConfigService,
@@ -134,13 +129,6 @@ export class GoogleSheetsService {
     private readonly discordService: DiscordService,
   ) {
     this.initializeSheets();
-    // Debug: log All-in-One config at startup (console.log so it's visible even if dist wasn't rebuilt)
-    const allInOneCfg = this.configService.get<
-      Array<{ version: string; spreadsheetId: string }>
-    >('googleSheets.allInOneBuilds');
-    const msg = `[AllInOneConfig] googleSheets.allInOneBuilds = ${JSON.stringify(allInOneCfg)}`;
-    this.logger.log(msg);
-    console.log(msg);
   }
 
   private async initializeSheets() {
@@ -216,7 +204,7 @@ export class GoogleSheetsService {
 
     try {
       // Process main spreadsheet (regular submissions)
-      if (this.enableLegacySpreadsheets && this.spreadsheetId) {
+      if (this.spreadsheetId) {
         const response = await this.sheets.spreadsheets.values.get({
           spreadsheetId: this.spreadsheetId,
           range: this.range,
@@ -241,39 +229,37 @@ export class GoogleSheetsService {
       }
 
       // Process structured report build spreadsheets
-      if (this.enableLegacySpreadsheets) {
-        const buildSpreadsheets = this.configService.get<Array<{ version: string; spreadsheetId: string }>>('googleSheets.structuredReportBuilds') || [];
+      const buildSpreadsheets = this.configService.get<Array<{ version: string; spreadsheetId: string }>>('googleSheets.structuredReportBuilds') || [];
+      
+      for (const build of buildSpreadsheets) {
+        if (!build.spreadsheetId) continue;
         
-        for (const build of buildSpreadsheets) {
-          if (!build.spreadsheetId) continue;
+        try {
+          this.logger.debug(`Polling structured report spreadsheet for build ${build.version}: ${build.spreadsheetId}`);
           
-          try {
-            this.logger.debug(`Polling structured report spreadsheet for build ${build.version}: ${build.spreadsheetId}`);
-            
-            const response = await this.sheets.spreadsheets.values.get({
-              spreadsheetId: build.spreadsheetId,
-              range: 'Form Responses 1!A:Z', // Standard range for Google Forms responses
-            });
+          const response = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: build.spreadsheetId,
+            range: 'Form Responses 1!A:Z', // Standard range for Google Forms responses
+          });
 
-            const rows = response.data.values;
-            if (!rows || rows.length === 0) {
-              continue;
-            }
-
-            // Parse header row
-            const headerRow = rows[0];
-            const columnMap = this.parseHeaderRow(headerRow);
-
-            // Process all rows (skip header row)
-            const dataRows = rows.slice(1);
-
-            for (const row of dataRows) {
-              await this.processStructuredReportBuildRow(row, columnMap, build.version);
-            }
-          } catch (error) {
-            this.logger.error(`Error polling structured report spreadsheet for build ${build.version}:`, error);
-            // Continue with other spreadsheets even if one fails
+          const rows = response.data.values;
+          if (!rows || rows.length === 0) {
+            continue;
           }
+
+          // Parse header row
+          const headerRow = rows[0];
+          const columnMap = this.parseHeaderRow(headerRow);
+
+          // Process all rows (skip header row)
+          const dataRows = rows.slice(1);
+
+          for (const row of dataRows) {
+            await this.processStructuredReportBuildRow(row, columnMap, build.version);
+          }
+        } catch (error) {
+          this.logger.error(`Error polling structured report spreadsheet for build ${build.version}:`, error);
+          // Continue with other spreadsheets even if one fails
         }
       }
 
@@ -305,67 +291,6 @@ export class GoogleSheetsService {
         } catch (error) {
           this.logger.error('Error polling Record your session spreadsheet:', error);
           // Continue even if this spreadsheet fails
-        }
-      }
-
-      // Process All-in-One build spreadsheets (one long form per build, ID-FSR/ID-IF/ID-S/ID-V/ID-SR)
-      const allInOneBuilds = this.configService.get<Array<{ version: string; spreadsheetId: string }>>('googleSheets.allInOneBuilds') || [];
-      const allInOneRange = this.configService.get<string>('googleSheets.allInOneRange') || 'Form Responses 1!A:ZZ';
-
-      if (allInOneBuilds.length === 0) {
-        this.logger.debug('No all-in-one build spreadsheets configured (check GOOGLE_SHEETS_SPREADSHEET_ALL_IN_ONE_BUILD_2.11_ID or GOOGLE_SHEETS_ALL_IN_ONE_BUILDS)');
-      }
-      for (const build of allInOneBuilds) {
-        if (!build.spreadsheetId) continue;
-        try {
-          this.logger.log(`Polling all-in-one spreadsheet for build ${build.version}: ${build.spreadsheetId}`);
-          let response: { data: { values?: any[][] } };
-          try {
-            response = await this.sheets.spreadsheets.values.get({
-              spreadsheetId: build.spreadsheetId,
-              range: allInOneRange,
-            });
-          } catch (rangeErr: any) {
-            // Fallback: first sheet may have different name (e.g. "Odpowiedzi formularza 1")
-            const msg = rangeErr?.message || String(rangeErr);
-            if (msg.includes('Unable to parse range') || msg.includes('404') || msg.includes('not found')) {
-              this.logger.warn(`All-in-one range "${allInOneRange}" failed, trying first sheet A:ZZ`);
-              response = await this.sheets.spreadsheets.values.get({
-                spreadsheetId: build.spreadsheetId,
-                range: 'A:ZZ',
-              });
-            } else {
-              throw rangeErr;
-            }
-          }
-          const rows = response.data.values;
-          if (!rows || rows.length === 0) {
-            this.logger.debug(`All-in-one build ${build.version}: no data rows`);
-            continue;
-          }
-          const headerRow = rows[0];
-          const columnMap = this.parseHeaderRowAllInOne(headerRow);
-          if (columnMap.email < 0) {
-            this.logger.warn(`All-in-one build ${build.version}: no email column found in header. First headers: ${headerRow.slice(0, 5).join(' | ')}`);
-          }
-          const dataRows = rows.slice(1);
-          const seenDiscordIds = new Set<string>();
-          for (const row of dataRows) {
-            const uid = await this.processAllInOneBuildRow(row, columnMap, build.version);
-            if (uid) seenDiscordIds.add(uid);
-          }
-          const removed = await this.submissionService.deleteAllInOneSubmissionsForBuildExceptUsers(
-            build.version,
-            seenDiscordIds,
-          );
-          if (removed > 0) {
-            this.logger.log(
-              `All-in-one build ${build.version}: removed ${removed} record(s) no longer present in sheet`,
-            );
-          }
-          this.logger.log(`All-in-one build ${build.version}: processed ${dataRows.length} row(s)`);
-        } catch (error) {
-          this.logger.error(`Error polling all-in-one spreadsheet for build ${build.version}:`, error);
         }
       }
     } catch (error) {
@@ -403,7 +328,7 @@ export class GoogleSheetsService {
 
     try {
       // Main spreadsheet
-      if (this.enableLegacySpreadsheets && this.spreadsheetId) {
+      if (this.spreadsheetId) {
         const response = await this.sheets.spreadsheets.values.get({
           spreadsheetId: this.spreadsheetId,
           range: this.range,
@@ -424,36 +349,34 @@ export class GoogleSheetsService {
       }
 
       // Structured report build spreadsheets
-      if (this.enableLegacySpreadsheets) {
-        const buildSpreadsheets =
-          this.configService.get<Array<{ version: string; spreadsheetId: string }>>(
-            'googleSheets.structuredReportBuilds',
-          ) || [];
-        for (const build of buildSpreadsheets) {
-          if (!build.spreadsheetId) continue;
-          try {
-            const response = await this.sheets.spreadsheets.values.get({
-              spreadsheetId: build.spreadsheetId,
-              range: 'Form Responses 1!A:Z',
-            });
-            const rows = response.data.values;
-            if (!rows || rows.length === 0) continue;
-            const headerRow = rows[0];
-            const columnMap = this.parseHeaderRow(headerRow);
-            const dataRows = rows.slice(1);
-            for (const row of dataRows) {
-              const rowEmail = this.getEmailFromRow(row, columnMap);
-              if (rowEmail && rowEmail.trim().toLowerCase() === normalizedEmail) {
-                await this.processStructuredReportBuildRow(row, columnMap, build.version);
-                processed++;
-              }
+      const buildSpreadsheets =
+        this.configService.get<Array<{ version: string; spreadsheetId: string }>>(
+          'googleSheets.structuredReportBuilds',
+        ) || [];
+      for (const build of buildSpreadsheets) {
+        if (!build.spreadsheetId) continue;
+        try {
+          const response = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: build.spreadsheetId,
+            range: 'Form Responses 1!A:Z',
+          });
+          const rows = response.data.values;
+          if (!rows || rows.length === 0) continue;
+          const headerRow = rows[0];
+          const columnMap = this.parseHeaderRow(headerRow);
+          const dataRows = rows.slice(1);
+          for (const row of dataRows) {
+            const rowEmail = this.getEmailFromRow(row, columnMap);
+            if (rowEmail && rowEmail.trim().toLowerCase() === normalizedEmail) {
+              await this.processStructuredReportBuildRow(row, columnMap, build.version);
+              processed++;
             }
-          } catch (err) {
-            this.logger.error(
-              `Error syncing individual user from structured report build ${build.version}:`,
-              err,
-            );
           }
+        } catch (err) {
+          this.logger.error(
+            `Error syncing individual user from structured report build ${build.version}:`,
+            err,
+          );
         }
       }
 
@@ -482,85 +405,6 @@ export class GoogleSheetsService {
           }
         } catch (err) {
           this.logger.error('Error syncing individual user from Record your session:', err);
-        }
-      }
-
-      // All-in-one build spreadsheets (2.11, 2.12, … — each build synced with same rules)
-      const allInOneBuilds = this.configService.get<Array<{ version: string; spreadsheetId: string }>>('googleSheets.allInOneBuilds') || [];
-      const allInOneRange = this.configService.get<string>('googleSheets.allInOneRange') || 'Form Responses 1!A:ZZ';
-      if (allInOneBuilds.length > 0) {
-        this.logger.debug(
-          `All-in-one sync for ${normalizedEmail}: builds [${allInOneBuilds.map((b) => b.version).join(', ')}]`,
-        );
-      }
-      for (const build of allInOneBuilds) {
-        if (!build.spreadsheetId) continue;
-        try {
-          let response: { data: { values?: any[][] } };
-          try {
-            response = await this.sheets.spreadsheets.values.get({
-              spreadsheetId: build.spreadsheetId,
-              range: allInOneRange,
-            });
-          } catch (rangeErr: any) {
-            const msg = rangeErr?.message || String(rangeErr);
-            if (msg.includes('Unable to parse range') || msg.includes('404') || msg.includes('not found')) {
-              this.logger.warn(
-                `All-in-one (syncForUserByEmail) range "${allInOneRange}" failed for build ${build.version}, trying first sheet A:ZZ`,
-              );
-              response = await this.sheets.spreadsheets.values.get({
-                spreadsheetId: build.spreadsheetId,
-                range: 'A:ZZ',
-              });
-            } else {
-              throw rangeErr;
-            }
-          }
-          const rows = response.data.values;
-          if (!rows || rows.length === 0) {
-            this.logger.debug(`All-in-one build ${build.version}: no data rows`);
-            continue;
-          }
-          const headerRow = rows[0];
-          const columnMap = this.parseHeaderRowAllInOne(headerRow);
-          const emailCol = columnMap.email;
-          if (emailCol < 0) {
-            this.logger.warn(`All-in-one build ${build.version}: no email column, skip`);
-            continue;
-          }
-          const dataRows = rows.slice(1);
-          let buildProcessed = 0;
-          for (const row of dataRows) {
-            const rowEmail = row[emailCol]?.toString().trim().toLowerCase() || '';
-            if (rowEmail === normalizedEmail) {
-              await this.processAllInOneBuildRow(row, columnMap, build.version);
-              processed++;
-              buildProcessed++;
-            }
-          }
-          if (buildProcessed === 0) {
-            const discordUserId = await this.playerService.resolveToDiscordId(
-              normalizedEmail,
-              normalizedEmail,
-              true,
-            );
-            if (discordUserId) {
-              const existing = await this.submissionService.findSubmissionByAllInOneBuild(
-                discordUserId,
-                build.version,
-              );
-              if (existing) {
-                await this.submissionService.deleteSubmission(existing.id);
-                this.logger.log(
-                  `All-in-one build ${build.version}: removed submission ${existing.id} for ${normalizedEmail} (no row in sheet).`,
-                );
-              }
-            }
-          } else {
-            this.logger.log(`All-in-one build ${build.version}: synced ${buildProcessed} row(s) for ${normalizedEmail}`);
-          }
-        } catch (err) {
-          this.logger.error(`Error syncing all-in-one for build ${build.version}:`, err);
         }
       }
 
@@ -643,413 +487,6 @@ export class GoogleSheetsService {
       `Sheet headers parsed: ${JSON.stringify(columnMap)} | raw: [${headerRow.slice(0, 8).map((h) => JSON.stringify(h)).join(', ')}]`,
     );
     return columnMap;
-  }
-
-  /** All-in-one form: column indices by ID suffix (ID-FSR, ID-IF, ID-S, ID-V, ID-SR) + APPROVED? */
-  private parseHeaderRowAllInOne(headerRow: string[]): {
-    email: number;
-    timestamp: number;
-    fsr: number[];
-    if: number[];
-    s: number[];
-    v: number[];
-    sr: number[];
-    approvedColumn: number;
-  } {
-    const result = {
-      email: -1,
-      timestamp: -1,
-      fsr: [] as number[],
-      if: [] as number[],
-      s: [] as number[],
-      v: [] as number[],
-      sr: [] as number[],
-      approvedColumn: -1,
-    };
-    headerRow.forEach((header, index) => {
-      const h = header?.toString().trim() || '';
-      if (h.toLowerCase().includes('timestamp')) result.timestamp = index;
-      if (h.toLowerCase().includes('email') || h.toLowerCase().includes('e-mail')) result.email = index;
-      if (h.includes('ID-FSR')) result.fsr.push(index);
-      if (h.includes('ID-IF')) result.if.push(index);
-      if (h.includes('ID-SR')) result.sr.push(index);
-      else if (h.includes('ID-S')) result.s.push(index);
-      if (h.includes('ID-V')) result.v.push(index);
-      if (h.toLowerCase().includes('approved')) result.approvedColumn = index;
-    });
-    if (result.email < 0) {
-      for (let i = 0; i < headerRow.length; i++) {
-        const v = headerRow[i]?.toString().trim() || '';
-        if (v.includes('@') && v.includes('.')) continue;
-        if (/email|e-mail|mail/i.test(v)) { result.email = i; break; }
-      }
-    }
-    this.logger.debug(
-      `All-in-one headers: email=${result.email}, timestamp=${result.timestamp}, approvedColumn=${result.approvedColumn}, FSR=${result.fsr.length}, IF=${result.if.length}, S=${result.s.length}, V=${result.v.length}, SR=${result.sr.length}`,
-    );
-    return result;
-  }
-
-  /**
-   * Odczyt kolumny APPROVED?: puste → pending, FALSE → declined, TRUE → approved.
-   * Zwraca { status: 'pending'|'approved'|'declined', tcAwarded: number }.
-   */
-  private getAllInOneApprovedStatus(
-    row: any[],
-    approvedColumn: number,
-    totalPoints: number,
-  ): { status: 'pending' | 'approved' | 'declined'; tcAwarded: number } {
-    if (approvedColumn < 0) {
-      return { status: 'pending', tcAwarded: 0 };
-    }
-    const raw = row[approvedColumn]?.toString().trim().toLowerCase() || '';
-    if (raw === 'true') {
-      return { status: 'approved', tcAwarded: totalPoints };
-    }
-    if (raw === 'false') {
-      return { status: 'declined', tcAwarded: 0 };
-    }
-    return { status: 'pending', tcAwarded: 0 };
-  }
-
-  /** Count URLs in cell (comma/space separated), cap at maxPerCell. */
-  private countUrlsInCell(cell: string, maxPerCell: number): number {
-    if (!cell || typeof cell !== 'string') return 0;
-    const s = cell.trim();
-    if (!s) return 0;
-    const parts = s.split(/[\s,]+/).filter((p) => /https?:\/\//i.test(p));
-    return Math.min(parts.length, maxPerCell);
-  }
-
-  /**
-   * All-in-one gems: FSR=400, IF=10/cell, S=5/url (cap 10/cell), V=40/url (cap 10/cell), SR=250 total split by filled count.
-   * Form content (IF+S+V+SR) is capped per form (currently 1000), FSR is added on top.
-   * Zwraca punkty per kolumna (ifPerColumn, sPerColumn, vPerColumn, srPerColumn) żeby w profilu pokazać osobny wiersz na każde pytanie.
-   */
-  private computeAllInOneGems(
-    row: any[],
-    map: ReturnType<GoogleSheetsService['parseHeaderRowAllInOne']>,
-  ): {
-    formGems: number;
-    fsrGems: number;
-    total: number;
-    ifPerColumn: number[];
-    sPerColumn: number[];
-    vPerColumn: number[];
-    srPerColumn: number[];
-    rawForm: number;
-  } {
-    const FORM_CAP = 1000;
-    const GEMS_FSR = 400;
-    const GEMS_IF = 10;
-    const GEMS_S = 5;
-    const GEMS_V = 40;
-    const SR_TOTAL = 250;
-    const MAX_URLS_PER_CELL = 10;
-
-    let fsrGems = 0;
-    if (map.fsr.length > 0) {
-      const hasFsr = map.fsr.some((col) => {
-        const v = row[col]?.toString().trim() || '';
-        return v.length > 0;
-      });
-      if (hasFsr) fsrGems = GEMS_FSR;
-    }
-
-    const ifPerColumn: number[] = [];
-    for (const col of map.if) {
-      const v = row[col]?.toString().trim() || '';
-      ifPerColumn.push(v.length > 0 ? GEMS_IF : 0);
-    }
-
-    const sPerColumn: number[] = [];
-    for (const col of map.s) {
-      const n = this.countUrlsInCell(row[col]?.toString() || '', MAX_URLS_PER_CELL);
-      sPerColumn.push(n * GEMS_S);
-    }
-
-    const vPerColumn: number[] = [];
-    for (const col of map.v) {
-      const n = this.countUrlsInCell(row[col]?.toString() || '', MAX_URLS_PER_CELL);
-      vPerColumn.push(n * GEMS_V);
-    }
-
-    const totalSr = map.sr.length;
-    const srPerColumn: number[] = [];
-    let srFilled = 0;
-    for (const col of map.sr) {
-      const v = row[col]?.toString().trim() || '';
-      if (v.length > 0) srFilled++;
-    }
-    const perSr = totalSr > 0 ? Math.round(SR_TOTAL / totalSr) : 0;
-    for (const col of map.sr) {
-      const v = row[col]?.toString().trim() || '';
-      srPerColumn.push(v.length > 0 ? perSr : 0);
-    }
-
-    const rawForm =
-      ifPerColumn.reduce((a, b) => a + b, 0) +
-      sPerColumn.reduce((a, b) => a + b, 0) +
-      vPerColumn.reduce((a, b) => a + b, 0) +
-      srPerColumn.reduce((a, b) => a + b, 0);
-    const formGems = Math.min(rawForm, FORM_CAP);
-    const total = formGems + fsrGems;
-    return { formGems, fsrGems, total, ifPerColumn, sPerColumn, vPerColumn, srPerColumn, rawForm };
-  }
-
-  /**
-   * Process one All-in-One build row. Returns discordUserId when the row was "seen" (valid email + resolved user),
-   * so callers can track which users are still in the sheet. Returns null when row is skipped (invalid email / unresolved).
-   * When the row has 0 points (cleared or columns removed), existing submission is removed and discordUserId is still returned.
-   */
-  private async processAllInOneBuildRow(
-    row: any[],
-    columnMap: ReturnType<GoogleSheetsService['parseHeaderRowAllInOne']>,
-    buildVersion: string,
-  ): Promise<string | null> {
-    try {
-      if (columnMap.email < 0) {
-        this.logger.warn('All-in-one: no email column');
-        return null;
-      }
-      const email = row[columnMap.email]?.toString().trim() || '';
-      if (!email || !email.includes('@')) {
-        this.logger.debug('All-in-one: skipping row with invalid email');
-        return null;
-      }
-
-      const timestampIndex = columnMap.timestamp >= 0 ? columnMap.timestamp : 0;
-      const timestamp = row[timestampIndex]?.toString().trim() || null;
-
-      const discordUserId = await this.playerService.resolveToDiscordId(
-        email,
-        email,
-        true,
-      );
-      if (!discordUserId) {
-        this.logger.warn(`Could not resolve email "${email}" to Discord ID for all-in-one build ${buildVersion}.`);
-        return null;
-      }
-
-      const user = await this.playerService.getPlayer(discordUserId);
-      if (!user) {
-        this.logger.warn(`User not found after resolution: ${discordUserId}`);
-        return null;
-      }
-
-      await this.playerService.updatePlayerFields(discordUserId, undefined, email);
-
-      const {
-        formGems,
-        fsrGems,
-        total,
-        ifPerColumn,
-        sPerColumn,
-        vPerColumn,
-        srPerColumn,
-        rawForm,
-      } = this.computeAllInOneGems(row, columnMap);
-      const points = total;
-
-      const { status: approvedStatus, tcAwarded: approvedTcAwarded } =
-        this.getAllInOneApprovedStatus(row, columnMap.approvedColumn, points);
-
-      const activeCycle = await this.cycleService.getActiveCycle();
-      const cycleId = activeCycle?.id;
-
-      const existingSubmission = await this.submissionService.findSubmissionByAllInOneBuild(
-        discordUserId,
-        buildVersion,
-      );
-
-      // Row present but 0 points (cleared answers or columns removed) → remove record so no points are kept.
-      if (points <= 0 && existingSubmission) {
-        await this.submissionService.deleteSubmission(existingSubmission.id);
-        this.logger.log(
-          `All-in-one: removed submission ${existingSubmission.id} for build ${buildVersion}, user ${discordUserId} (row has 0 points – cleared or columns removed).`,
-        );
-        return discordUserId;
-      }
-
-      if (existingSubmission) {
-        const previousProposed = existingSubmission.tcProposed ?? 0;
-        const previousAwarded = existingSubmission.tcAwarded ?? 0;
-        const previousPayload: any = existingSubmission.payloadJson || {};
-
-        const sumArray = (val: any): number =>
-          Array.isArray(val)
-            ? (val as any[]).reduce(
-                (acc, v) => acc + (typeof v === 'number' ? v : 0),
-                0,
-              )
-            : 0;
-
-        let previousRawForm =
-          sumArray(previousPayload.ifPerColumn) +
-          sumArray(previousPayload.sPerColumn) +
-          sumArray(previousPayload.vPerColumn) +
-          sumArray(previousPayload.srPerColumn);
-
-        if (previousRawForm === 0) {
-          previousRawForm =
-            (previousPayload.ifGems ?? 0) +
-            (previousPayload.sGems ?? 0) +
-            (previousPayload.vGems ?? 0) +
-            (previousPayload.srGems ?? 0);
-        }
-
-        const needsUpdate =
-          existingSubmission.tcProposed !== points ||
-          existingSubmission.tcAwarded !== approvedTcAwarded ||
-          existingSubmission.status !== approvedStatus;
-
-        // Zawsze zapisuj rozbicie w payloadzie (per kolumna: ifPerColumn, sPerColumn, vPerColumn, srPerColumn).
-        await this.submissionService.updateSubmissionPayload(existingSubmission.id, {
-          formGems,
-          fsrGems,
-          ifPerColumn,
-          sPerColumn,
-          vPerColumn,
-          srPerColumn,
-        });
-
-        if (needsUpdate) {
-          await this.submissionService.updateQaStatus(
-            existingSubmission.id,
-            null,
-            buildVersion,
-            points,
-          );
-          await this.submissionService.updateSubmissionStatusAndPoints(
-            existingSubmission.id,
-            approvedStatus,
-            approvedTcAwarded,
-          );
-          this.logger.log(
-            `Updated all-in-one submission ${existingSubmission.id} for build ${buildVersion}, user ${discordUserId}, status: ${approvedStatus}, points: ${points}, tcAwarded: ${approvedTcAwarded}`,
-          );
-        }
-
-        const deltaProposed = points - previousProposed;
-        const deltaAwarded = (approvedTcAwarded ?? 0) - previousAwarded;
-        const rawDelta = rawForm - previousRawForm;
-        this.logger.debug(
-          `All-in-one: existing submission ${existingSubmission.id} for user ${discordUserId}, build ${buildVersion} — previousProposed=${previousProposed}, points=${points}, deltaProposed=${deltaProposed}, previousAwarded=${previousAwarded}, approvedTcAwarded=${approvedTcAwarded}, deltaAwarded=${deltaAwarded}, previousRawForm=${previousRawForm}, rawForm=${rawForm}, rawDelta=${rawDelta}`,
-        );
-        if (deltaProposed > 0) {
-          this.logger.log(
-            `All-in-one: sending highlight for existing submission ${existingSubmission.id}, user ${discordUserId}, build ${buildVersion}, deltaProposed=${deltaProposed}, deltaAwarded=${Math.max(
-              deltaAwarded,
-              0,
-            )}`,
-          );
-          const highlightLabel = deltaProposed === 400 ? 'First Session' : 'All-in-One form';
-          await this.sendHighlightNotification(
-            discordUserId,
-            'balance_analysis',
-            Math.max(deltaAwarded, 0),
-            deltaProposed,
-            highlightLabel,
-          );
-          const overflow = rawDelta - deltaProposed;
-          if (overflow > 0) {
-            this.logger.log(
-              `All-in-one: form cap partially reached for existing submission ${existingSubmission.id}, user ${discordUserId}, build ${buildVersion}, rawDelta=${rawDelta}, awardedDelta=${deltaProposed}, overflow=${overflow}`,
-            );
-            await this.sendAllInOneCapNotification(
-              discordUserId,
-              buildVersion,
-              rawDelta,
-              deltaProposed,
-              overflow,
-            );
-          }
-        } else if (rawDelta > 0) {
-          this.logger.log(
-            `All-in-one: form cap reached for existing submission ${existingSubmission.id}, user ${discordUserId}, build ${buildVersion}, rawDelta=${rawDelta}, deltaProposed=${deltaProposed}`,
-          );
-          await this.sendAllInOneCapNotification(
-            discordUserId,
-            buildVersion,
-            rawDelta,
-            0,
-            rawDelta,
-          );
-        } else {
-          this.logger.debug(
-            `All-in-one: no highlight sent for existing submission ${existingSubmission.id} (deltaProposed <= 0)`,
-          );
-        }
-        return discordUserId;
-      }
-
-      if (points <= 0) {
-        this.logger.debug(`All-in-one: skipping row with 0 points for ${email}`);
-        return discordUserId;
-      }
-
-      const newSubmission = await this.submissionService.createStructuredReportSubmission(
-        discordUserId,
-        'balance_analysis',
-        {
-          googleTimestamp: timestamp,
-          email,
-          buildVersion,
-          allInOneForm: true,
-          formGems,
-          fsrGems,
-          ifPerColumn,
-          sPerColumn,
-          vPerColumn,
-          srPerColumn,
-          googleRowData: row,
-        },
-        [],
-        cycleId,
-        approvedStatus,
-        points,
-        null,
-        buildVersion,
-      );
-
-      if (newSubmission.tcAwarded !== approvedTcAwarded) {
-        await this.submissionService.updateSubmissionStatusAndPoints(
-          newSubmission.id,
-          approvedStatus,
-          approvedTcAwarded,
-        );
-      }
-
-      this.logger.log(
-        `Created all-in-one submission ${newSubmission.id} for build ${buildVersion}, user ${discordUserId}, status: ${approvedStatus}, points: ${points} (form: ${formGems}, FSR: ${fsrGems})`,
-      );
-
-      // Send notification to highlights channel for this all-in-one record.
-      // We always show the delta of proposed gems for this form (so edits that add more content only show the extra points).
-      const deltaAwarded = approvedTcAwarded ?? newSubmission.tcAwarded ?? 0;
-      this.logger.log(
-        `All-in-one: sending highlight for NEW submission ${newSubmission.id}, user ${discordUserId}, build ${buildVersion}, proposed=${points}, awarded=${Math.max(
-          deltaAwarded,
-          0,
-        )}`,
-      );
-      const highlightLabel = points === 400 ? 'First Session' : 'All-in-One form';
-      await this.sendHighlightNotification(
-        discordUserId,
-        'balance_analysis',
-        Math.max(deltaAwarded, 0),
-        points,
-        highlightLabel,
-      );
-      return discordUserId;
-    } catch (error) {
-      this.logger.error(
-        `Error processing all-in-one row for build ${buildVersion}:`,
-        error,
-      );
-      this.logger.debug(`Failed row data: ${JSON.stringify(row)}`);
-      return null;
-    }
   }
 
   private async processStructuredReportRow(
@@ -1759,66 +1196,15 @@ export class GoogleSheetsService {
   }
 
   /**
-   * Special notification for All-in-One forms when user adds more feedback
-   * but is already at the per-form cap, so extra gems don't increase rewards.
-   */
-  private async sendAllInOneCapNotification(
-    discordUserId: string,
-    buildVersion: string,
-    rawDelta: number,
-    awardedDelta: number,
-    overflow: number,
-  ): Promise<void> {
-    try {
-      if (overflow <= 0) return;
-
-      const highlightsChannelId = this.configService.get(
-        'discord.channels.highlights',
-      );
-
-      if (!highlightsChannelId) {
-        this.logger.warn(
-          'CHANNEL_HIGHLIGHTS not configured, skipping All-in-One cap notification',
-        );
-        return;
-      }
-
-      const gem = this.discordService.getGemEmoji();
-
-      let message = `📊 **New Feedback Added (Cap Reached)**\n\n`;
-      message += `Founder <@${discordUserId}> added **+${rawDelta} ${gem}** worth of extra feedback to their profile for build **${buildVersion}**.\n`;
-      if (awardedDelta > 0) {
-        message += `From this, **+${awardedDelta} ${gem}** counted towards rewards (up to the per-form cap), while **+${overflow} ${gem}** is above the cap and doesn't increase rewards.\n`;
-      } else {
-        message += `All of this (**+${overflow} ${gem}**) is above the per-form cap and doesn't increase rewards.\n`;
-      }
-      message += `The extra feedback still helps us balance the game, even if it no longer gives additional gems.\n\n`;
-      message += `Thank you for continuing to help us shape Monopoly World.`;
-
-      await this.discordService.sendToChannel(highlightsChannelId, message);
-      this.logger.log(
-        `Sent All-in-One cap notification for user ${discordUserId}, build ${buildVersion}, rawDelta=${rawDelta}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Error sending All-in-One cap notification for user ${discordUserId}, build ${buildVersion}:`,
-        error,
-      );
-    }
-  }
-
-  /**
    * Send notification to highlights channel when a new submission is created.
    * Includes +Gems and a leaderboard snippet around the user's rank.
    * When pointsAwarded is 0 (e.g. pending QA), displays pointsProposed so the message doesn't show "+0 awarded".
-   * For All-in-One, pass customTypeLabel e.g. "First Session" (ID-FSR) or "All-in-One form" so the message is accurate.
    */
   private async sendHighlightNotification(
     discordUserId: string,
     submissionType: 'bug_repro' | 'bug_video' | 'balance_analysis',
     pointsAwarded: number = 15,
     pointsProposed?: number,
-    customTypeLabel?: string,
   ): Promise<void> {
     try {
       // Don't send a highlight when there are no points to show (avoids "+0 awarded" for pending Balance Analysis build rows, etc.)
@@ -1843,7 +1229,7 @@ export class GoogleSheetsService {
 
       const gem = this.discordService.getGemEmoji();
 
-      // Map submission type to readable English text (overridden by customTypeLabel for All-in-One)
+      // Map submission type to readable English text
       const submissionTypeMap: Record<
         'bug_repro' | 'bug_video' | 'balance_analysis',
         string
@@ -1853,7 +1239,7 @@ export class GoogleSheetsService {
         balance_analysis: 'Balance Analysis Report',
       };
 
-      const submissionTypeText = customTypeLabel ?? (submissionTypeMap[submissionType] || submissionType);
+      const submissionTypeText = submissionTypeMap[submissionType] || submissionType;
       const displayPoints = pointsAwarded > 0 ? pointsAwarded : (pointsProposed ?? pointsAwarded);
 
       let message = `📊 **New Feedback Submitted**\n\n`;

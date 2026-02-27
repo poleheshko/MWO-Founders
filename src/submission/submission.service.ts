@@ -281,39 +281,11 @@ export class SubmissionService {
     }
 
     submission.status = status;
-
-    let awarded = tcAwarded;
-    if (status === 'approved') {
-      awarded = await this.applyBuildCap(
-        submission.discordUserId,
-        submission.cycleId,
-        submission.type,
-        awarded,
-        submission.id,
-      );
-    }
-    submission.tcAwarded = awarded;
+    submission.tcAwarded = tcAwarded;
 
     const saved = await this.submissionRepository.save(submission);
     await this.recalculateTotals(submission.discordUserId);
     return saved;
-  }
-
-  /**
-   * Merge fields into submission payload (e.g. All-in-One breakdown: ifGems, sGems, vGems, srGems).
-   */
-  async updateSubmissionPayload(
-    submissionId: string,
-    payloadUpdate: Record<string, unknown>,
-  ): Promise<Submission> {
-    const submission = await this.submissionRepository.findOne({
-      where: { id: submissionId },
-    });
-    if (!submission) {
-      throw new Error(`Submission ${submissionId} not found`);
-    }
-    submission.payloadJson = { ...submission.payloadJson, ...payloadUpdate };
-    return this.submissionRepository.save(submission);
   }
 
   /**
@@ -522,11 +494,6 @@ export class SubmissionService {
       .orderBy('SUM(submission.tc_proposed)', 'DESC')
       .limit(limit);
 
-    // Nie licz punktów z odrzuconych zgłoszeń (declined) na leaderboardzie
-    query.andWhere('submission.status != :declinedStatus', {
-      declinedStatus: 'declined',
-    });
-
     if (scope === 'week' && cycleId) {
       query.andWhere('submission.cycleId = :cycleId', { cycleId });
     }
@@ -718,54 +685,5 @@ export class SubmissionService {
     }
 
     return null;
-  }
-
-  /**
-   * Find existing all-in-one form submission for a user and build (one form per user per build).
-   */
-  async findSubmissionByAllInOneBuild(
-    discordUserId: string,
-    buildVersion: string,
-  ): Promise<Submission | null> {
-    const submissions = await this.submissionRepository.find({
-      where: { discordUserId, type: 'balance_analysis' },
-    });
-    return (
-      submissions.find(
-        (s) =>
-          s.payloadJson?.allInOneForm === true &&
-          s.payloadJson?.buildVersion === buildVersion,
-      ) ?? null
-    );
-  }
-
-  /**
-   * Delete a submission by id (used when All-in-One row is removed or cleared in sheet).
-   */
-  async deleteSubmission(id: string): Promise<void> {
-    await this.submissionRepository.delete(id);
-  }
-
-  /**
-   * Delete All-in-One submissions for a build whose users are not in the given set
-   * (e.g. after sync: remove records for users no longer present in the spreadsheet).
-   */
-  async deleteAllInOneSubmissionsForBuildExceptUsers(
-    buildVersion: string,
-    discordUserIds: Set<string>,
-  ): Promise<number> {
-    const submissions = await this.submissionRepository.find({
-      where: { type: 'balance_analysis' },
-    });
-    const toDelete = submissions.filter(
-      (s) =>
-        s.payloadJson?.allInOneForm === true &&
-        s.payloadJson?.buildVersion === buildVersion &&
-        !discordUserIds.has(s.discordUserId),
-    );
-    for (const s of toDelete) {
-      await this.submissionRepository.delete(s.id);
-    }
-    return toDelete.length;
   }
 }
