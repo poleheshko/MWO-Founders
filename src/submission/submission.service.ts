@@ -281,7 +281,18 @@ export class SubmissionService {
     }
 
     submission.status = status;
-    submission.tcAwarded = tcAwarded;
+
+    let awarded = tcAwarded;
+    if (status === 'approved') {
+      awarded = await this.applyBuildCap(
+        submission.discordUserId,
+        submission.cycleId,
+        submission.type,
+        awarded,
+        submission.id,
+      );
+    }
+    submission.tcAwarded = awarded;
 
     const saved = await this.submissionRepository.save(submission);
     await this.recalculateTotals(submission.discordUserId);
